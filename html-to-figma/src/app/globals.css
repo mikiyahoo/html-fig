@@ -1,0 +1,303 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222.2 84% 4.9%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  color: rgb(222.2 84% 4.9%);
+  background: white;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgb(249 250 251);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(209 213 219);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(156 163 175);
+}
+
+::selection {
+  background: rgb(59 130 246 / 0.2);
+  color: rgb(222.2 84% 4.9%);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.focus-ring:focus {
+  outline: none;
+  @apply ring-2 ring-primary ring-offset-2 ring-offset-white;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(var(--muted) / 0.2) 25%,
+    rgb(var(--muted) / 0.4) 50%,
+    rgb(var(--muted) / 0.2) 75%
+  );
+  background-size: 200% 100%;
+  animation: pulse 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+}
+
+.btn-loading::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid rgb(var(--primary-foreground) / 0.6);
+  border-top-color: rgb(var(--primary-foreground));
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  text-align: center;
+  color: rgb(var(--muted-foreground));
+}
+
+.empty-state .empty-state-icon {
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: rgb(var(--foreground));
+  margin-bottom: 0.25rem;
+}
+
+.empty-state p {
+  font-size: 0.875rem;
+  max-width: 28rem;
+}
+
+.error-card {
+  background: rgb(254 242 242 / 0.5);
+  border: 1px solid rgb(254 242 242 / 0.8);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  color: rgb(220 38 38);
+  font-size: 0.875rem;
+}
+
+.warning-card {
+  background: rgb(254 240 138 / 0.5);
+  border: 1px solid rgb(254 240 138 / 0.8);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  color: rgb(245 158 11);
+  font-size: 0.875rem;
+}
+
+.info-card {
+  background: rgb(219 234 254 / 0.5);
+  border: 1px solid rgb(219 234 254 / 0.8);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  color: rgb(37 99 235);
+  font-size: 0.875rem;
+}
+
+.toast {
+  position: fixed;
+  bottom-right;
+  z-index: 50;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  animation: slideUp 0.2s ease-out;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toast[data-type="success"] {
+  background: rgb(22 163 74 / 0.1);
+  color: rgb(22 163 74);
+  border: 1px solid rgb(22 163 74 / 0.2);
+}
+
+.toast[data-type="error"] {
+  background: rgb(220 38 38 / 0.1);
+  color: rgb(220 38 38);
+  border: 1px solid rgb(220 38 38 / 0.2);
+}
+
+.toast[data-type="warning"] {
+  background: rgb(245 158 11 / 0.1);
+  color: rgb(245 158 11);
+  border: 1px solid rgb(245 158 11 / 0.2);
+}
+
+@media (max-width: 768px) {
+  .capture-progress {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.status-badge[data-status="idle"] {
+  background: rgb(var(--secondary) / 0.1);
+  color: rgb(var(--secondary-foreground));
+}
+
+.status-badge[data-status="loading"] {
+  background: rgb(var(--primary) / 0.1);
+  color: rgb(var(--primary));
+}
+
+.status-badge[data-status="success"] {
+  background: rgb(22 163 74 / 0.1);
+  color: rgb(22 163 74);
+}
+
+.status-badge[data-status="error"] {
+  background: rgb(220 38 38 / 0.1);
+  color: rgb(220 38 38);
+}
+
+.status-badge[data-status="warning"] {
+  background: rgb(245 158 11 / 0.1);
+  color: rgb(245 158 11);
+}
+
+.capture-progress {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.capture-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.capture-progress-step[data-state="active"] {
+  background: rgb(var(--primary) / 0.1);
+  color: rgb(var(--primary));
+}
+
+.capture-progress-step[data-state="completed"] {
+  background: rgb(22 163 74 / 0.1);
+  color: rgb(22 163 74);
+}
+
+.capture-progress-step[data-state="pending"] {
+  background: rgb(var(--secondary) / 0.1);
+  color: rgb(var(--secondary-foreground));
+}
+
+.capture-progress-step .step-number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+}
+
+.capture-progress-step[data-state="active"] .step-number {
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+}
+
+.capture-progress-step[data-state="completed"] .step-number {
+  background: rgb(22 163 74);
+  color: rgb(255 255 255);
+}
+
+.capture-progress-step[data-state="pending"] .step-number {
+  background: rgb(var(--secondary));
+  color: rgb(var(--secondary-foreground));
+}

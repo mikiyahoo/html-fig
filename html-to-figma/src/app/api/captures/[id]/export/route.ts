@@ -1,0 +1,89 @@
+import { type NextRequest, NextResponse } from "next/server";
+import { getCaptureDir, generateSafeFilename } from "@/lib/storage";
+import fs from "fs";
+import path from "path";
+import JSZip from "jszip";
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+    if (!/^[0-9a-f-]{36}$/i.test(id)) {
+      return NextResponse.json({ error: "Capture not found", code: "NOT_FOUND" }, { status: 404 });
+    }
+
+    const captureDir = getCaptureDir(id);
+
+    // Check if capture exists
+    const manifestPath = path.join(captureDir, "manifest.json");
+    if (!fs.existsSync(manifestPath)) {
+      return NextResponse.json(
+        { error: "Capture not found", code: "NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+
+    // Read the page.json
+    const pagePath = path.join(captureDir, "page.json");
+    const pageData = fs.existsSync(pagePath)
+      ? fs.readFileSync(pagePath)
+      : Buffer.from("{}");
+
+    // Create ZIP in memory
+    const zip = new JSZip();
+    zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+    zip.file("page.json", pageData.toString("utf-8"));
+
+    // Add screenshots if they exist
+    const screenshotsDir = path.join(captureDir, "screenshots");
+    if (fs.existsSync(screenshotsDir)) {
+      fs.readdirSync(screenshotsDir).forEach((file) => {
+        const filePath = path.join(screenshotsDir, file);
+        if (fs.statSync(filePath).isFile()) {
+          zip.file(`screenshots/${file}`, fs.readFileSync(filePath));
+        }
+      });
+    }
+
+    // Add assets if they exist
+    const assetsDir = path.join(captureDir, "assets");
+    if (fs.existsSync(assetsDir)) {
+      fs.readdirSync(assetsDir).forEach((file) => {
+        const filePath = path.join(assetsDir, file);
+        if (fs.statSync(filePath).isFile()) {
+          zip.file(`assets/${file}`, fs.readFileSync(filePath));
+        }
+      });
+    }
+
+    // Add README
+    const readmePath = path.join(captureDir, "README.md");
+    if (fs.existsSync(readmePath)) {
+      zip.file("README.md", fs.readFileSync(readmePath, "utf-8"));
+    }
+
+    // Generate ZIP file
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+    // Return the generated archive directly; no extra temporary copy is needed.
+    return new NextResponse(zipBuffer, {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${generateSafeFilename(id, "zip")}"`,
+        "Content-Length": zipBuffer.length.toString(),
+        "Cache-Control": "no-cache",
+      },
+    });
+
+  } catch (error) {
+    console.error("Export error:", error);
+    return NextResponse.json(
+      { error: "Internal server error", code: "EXPORT_ERROR" },
+      { status: 500 }
+    );
+  }
+}

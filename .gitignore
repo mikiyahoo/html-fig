@@ -1,0 +1,16 @@
+# Dependencies and generated application output
+**/node_modules/
+**/.next/
+**/out/
+**/coverage/
+**/*.tsbuildinfo
+
+# Local capture data and diagnostics
+**/temp/captures/
+**/*.log
+**/build-out.txt
+
+# Local environment files
+**/.env
+**/.env.*
+!**/.env.example
