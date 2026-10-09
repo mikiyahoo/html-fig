@@ -1,0 +1,279 @@
+﻿You can build a web-based app that takes a website URL, captures its pages and design system, converts the website into editable Figma layers, and lets the user download the result as a Figma-compatible design file.
+
+The key is to rebuild the website as editable design objects, not just take screenshots and put them into Figma. A screenshot preserves the appearance, but the text, buttons, cards, navigation, and layout are not individually editable.
+
+# 1. How your app should work
+
+![How to Pick a Domain for Directory Websites - Directify](https://images.openai.com/static-rsc-4/oLqxVuPGQpy_kky4OmkfJBp3bW6LTmZIfq-tXtrpQQr6cP2ERfWrGbRmuZbsOf90qTFs0E-LXBG_-HbVel1txcIMNS5GeQHCa0LnmRUULpFLdiIDoVc_lcLhiOqZOysAPF3xODtik-oVOaltekUYAhBzSvwjchP_HfFdeFoM_HA?purpose=inline)
+
+Add to Favorites
+
+01 â€” Enter website URL
+
+The user enters a URL, such as `https://example.com`, and clicks Import Website.
+
+![Free Visual Sitemap Generator â€“ Crawl Any Website | Rarchy](https://images.openai.com/static-rsc-4/Pz3Wn3eCyUYhokwf6brk5Xl0V2sfbgZHoDPuxlW4cMB9L_gpIqu4O3PyWhCxJdrFOHMF2PnSuNkywosW9wEZ0KzKn1AVLQwqUJ9FgykR4yAwqy4-1kIqwRLUgjWlQiJ5gOKGW_pwuyUE8xNJXElgwMYA_GBwoIXlly2GPVynuw4?purpose=inline)
+
+Add to Favorites
+
+02 â€” Crawl the website
+
+Discover pages, navigation, links, images, fonts, colors, responsive layouts, and reusable components.
+
+![StylePeek: Inspect Fonts, Colors, and Spacing Without Opening DevTools](https://images.openai.com/static-rsc-4/BSOGUCT_M-d8WbTYFc6mIoMPwUH6seBW-n03uaCtrG07LbleCRJuUli_QcyXLf4rdLhaSGIW57g65OiMvEy-DVPjeqA3MReOZHJj4uM3MInyJcRLP-Hgmk-qG1YJT60wqqk2MXJVk58Mu5m3fRHgs-w2qgPQ7cs_NeBE2xYvQvE?purpose=inline)
+
+Add to Favorites
+
+03 â€” Analyze and reconstruct
+
+Use a real browser to render the website and extract its DOM, CSS, dimensions, and assets, then map them to editable design layers.
+
+![Figma Site & Make](https://images.openai.com/static-rsc-4/rGe9PQnPHs8gK0HEDa_30m3pFcXOc9qob1U-oKMfHk9tWl6_QrdBxK0m_jmamEP_q8eZ0DEa0sKrTxAHS5koOFPfaOEIVucqgFNSSYJe2rlZDJG4x5QQ6m2lCkZn71E2sGr7gBXkFZrqKGH12v4mNCEuO2kHQdxEXIOHexC4FR4?purpose=inline)
+
+Add to Favorites
+
+04 â€” Preview and refine
+
+Display reconstructed pages as artboards. Allow users to adjust page selection, viewport size, and conversion quality.
+
+![What Figma features are in beta? â€“ Figma Learn - Help Center](https://images.openai.com/static-rsc-4/c_vtCOnnEsQqk3oiC4gdjMswiwkiY8Z8yvvRrdtovUj8YkUWXL_hHq4Hy6MEV3UfHPnLHv3E40QNcRK42jyvXXo4hIzIXdXBiCquZMnRGBfCTzEHU4HbMl9Ixt81qagDXRaJNaBr8lJOp97VgxaFYtNYkQb2qqZtHohWNKjztyI?purpose=inline)
+
+Add to Favorites
+
+05 â€” Export to Figma
+
+Generate a downloadable `.fig` file where supported, or use a Figma plugin to create native layers in a Figma document. Offer SVG, PNG, and structured JSON exports as alternatives.
+
+One important technical detail: Figma does not provide a general-purpose public API that simply converts arbitrary HTML into a downloadable native `.fig` file. You will need a Figma plugin, an intermediate design representation, or a supported import workflow.
+
+## 2. Recommended technical architecture
+
+Since you work with Next.js and TypeScript, I would build this as a Next.js web application with a separate browser-rendering worker and a companion Figma plugin.
+
+Web app â€” Next.js + TypeScript
+
+URL input Â· project dashboard Â· page selector Â· preview Â· export settings
+
+Browser capture worker â€” Playwright
+
+Render pages Â· inspect DOM/CSS Â· capture screenshots Â· collect assets
+
+Conversion engine
+
+HTML/CSS â†’ normalized design tree â†’ Figma node instructions
+
+Figma plugin
+
+Creates native, editable layers
+
+Download center
+
+ZIP Â· JSON Â· SVG Â· PNG Â· PDF
+
+### Suggested technology stack
+
+| Part              | Technology                                  | Purpose                                             |
+| ----------------- | ------------------------------------------- | --------------------------------------------------- |
+| Frontend          | Next.js, TypeScript, Tailwind CSS           | Application UI and dashboard                        |
+| Browser rendering | Playwright + Chromium                       | Load real websites and inspect rendered layouts     |
+| HTML/CSS parsing  | DOM APIs, PostCSS or a CSS parser           | Extract structure and computed styles               |
+| Background jobs   | Redis + BullMQ                              | Handle large websites and long-running crawls       |
+| Database          | PostgreSQL + Prisma or Drizzle              | Projects, pages, assets, conversion jobs            |
+| File storage      | Local storage for MVP; object storage later | Screenshots, assets and exports                     |
+| Design conversion | Custom TypeScript converter                 | Map website elements to design nodes                |
+| Figma integration | Figma Plugin API                            | Create editable frames, text, shapes and components |
+
+Figma's official Plugin API supports creating and modifying document nodes, including frames, rectangles, text, and components. That makes a companion plugin the most practical way to create native Figma designs.
+
+![](https://www.google.com/s2/favicons?domain=https://developers.figma.com\&sz=32)
+
+Developer Docs
+
++2
+
+## 3. How to convert HTML into editable Figma layers
+
+This is the most important part of the entire product.
+
+For each page, the browser worker should capture three types of information:
+
+* Structure: headings, paragraphs, links, buttons, containers, navigation, images and sections.
+
+* Visual styling: dimensions, positions, padding, margins, backgrounds, colors, borders, shadows, fonts and line heights.
+
+* Assets: images, SVGs, logos, icons and font files that can legally be accessed and reused.
+
+Then transform the captured information into a normalized intermediate format that both the preview renderer and Figma plugin understand.
+
+For example, a website card could become:
+
+SOURCE WEBSITE COMPONENT
+
+![Shield Cyber | Continuous Exposure Management](https://images.openai.com/static-rsc-4/2TuoCrOAtxXPDP3uWNKOWzTJVsvRw-wmsLKtGQKtfUE156gF0SyLLafMY7TSYT8gbrBWtApAtUXoG1eFMkWtnfZcnIMkiEPLi_jGO7in8lL4HMqs1OGGfUVQb4BZgQjlV-kvVpd4n2mjmwJ1br1qcVq38cQ5_HSzfI1EyqtLHmU?purpose=inline)
+
+Add to Favorites
+
+Analytics Dashboard
+
+Monitor performance across all your channels.
+
+Get started
+
+RESULT IN FIGMA LAYERS PANEL
+
+Analytics Card â€” Frame
+
+Illustration â€” Image
+
+Title â€” Text
+
+Description â€” Text
+
+Button â€” Frame + Text
+
+The generated design should preserve parent-child relationships, naming, approximate layout, and editable text. For a better result, convert suitable layout containers into Figma Auto Layout frames rather than placing every element at a fixed coordinate.
+
+Some elements will need special treatment:
+
+* CSS gradients and shadows â†’ Figma fills and effects where supported.
+
+* SVG icons â†’ imported vectors or SVG nodes.
+
+* Images â†’ image fills or image nodes.
+
+* Flexbox and Grid â†’ Auto Layout where the layout can be mapped accurately.
+
+* Complex animations, canvas drawings, video, and advanced CSS effects â†’ screenshots or flattened visual fallbacks.
+
+The result will not be a perfect one-to-one translation of every website. Browser rendering and Figma's layout engine work differently, so the app should provide a visual comparison and allow corrections.
+
+## 4. Design the app's user interface
+
+I recommend a workspace similar to a website-import tool, with a large preview area and a conversion inspector.
+
+## Web to Figma
+
+Website conversion workspace
+
+Prototype layout
+
+Website URL
+
+Starting viewportDesktop
+
+Maximum pages10 pages
+
+Capture images and SVG assets
+
+Capture responsive layouts
+
+Import settings preview
+
+Starting viewport: Desktop
+
+Page limit: 10
+
+Assets: Included
+
+Responsive capture: Enabled
+
+Build with these settings
+
+Interactive concept only; this mockup does not crawl the entered website.
+
+The full product should include these screens:
+
+* Dashboard: past projects, recent imports, conversion status and saved designs.
+
+* Import wizard: URL, crawl depth, page limit, viewport selection and authentication options.
+
+* Page discovery: sitemap, page thumbnails, checkboxes and duplicate-page detection.
+
+* Conversion workspace: website preview alongside a layers tree and design settings.
+
+* Design system: detected colors, typography, spacing, buttons and reusable components.
+
+* Export center: choose pages and formats, inspect warnings and download results.
+
+## 5. Make the export actually work
+
+There are three distinct export paths. I would implement them in this order.
+
+A. Native Figma document â€” primary feature
+
+The user opens your companion Figma plugin, imports the conversion data, and the plugin builds editable frames, text, images and shapes inside Figma. The user can then save or export the document using Figma's supported workflow.
+
+![](https://www.google.com/s2/favicons?domain=https://developers.figma.com\&sz=32)
+
+Developer Docs
+
++1
+
+B. Downloadable conversion package
+
+Generate a ZIP containing `design.json`, `assets/`, page screenshots and a README. The plugin imports this package and reconstructs the document. This is the best first milestone because you control the package format.
+
+C. Instant visual exports
+
+Generate PNG, SVG and PDF previews where appropriate. These are useful for sharing and review, but do not replace an editable native Figma document.
+
+Important: do not promise that your web server can directly create a native `.fig` file merely by converting HTML. The Figma REST API's file endpoints primarily read file data and export representations; use the plugin to create design nodes, and let Figma handle its native file-saving workflow.
+
+![](https://www.google.com/s2/favicons?domain=https://developers.figma.com\&sz=32)
+
+Developer Docs
+
++2
+
+## 6. Implementation roadmap
+
+1. Phase 1 â€” Capture one page
+
+   Accept a URL, render the page in Playwright, extract DOM and computed CSS, save a screenshot and download assets.
+
+2. Phase 2 â€” Convert basic elements
+
+   Support headings, paragraphs, buttons, images, backgrounds, borders, containers and simple Flexbox layouts.
+
+3. Phase 3 â€” Build the Figma plugin
+
+   Import the normalized JSON and create named, editable nodes. Add image handling, font loading and Auto Layout support.
+
+4. Phase 4 â€” Crawl multiple pages
+
+   Discover internal links, let users select pages, reuse shared components and create a separate frame for each page.
+
+5. Phase 5 â€” Responsive reconstruction
+
+   Capture desktop, tablet and mobile layouts. Generate separate frames and infer reusable responsive patterns.
+
+6. Phase 6 â€” Production readiness
+
+   Add job queues, retries, progress indicators, project storage, ZIP export, usage limits and conversion diagnostics.
+
+## 7. Important problems to solve early
+
+* Website security: validate URLs and block requests to private IPs, localhost, cloud metadata endpoints and unsafe redirect destinations. Browser workers should run in isolated environments.
+
+* JavaScript-heavy websites: wait for the page to render and support delayed content, lazy-loaded images and scrolling.
+
+* Fonts and images: external assets can be blocked, unavailable or licensed for limited use. Provide fallbacks and clear warnings.
+
+* Authentication: some websites require a login. Treat authenticated capture as a separate feature with secure session handling.
+
+* Copyright: require users to have permission to capture and reuse the website's content and assets.
+
+* Conversion fidelity: preserve a screenshot as a visual reference so users can compare the source with the editable reconstruction.
+
+## My recommendation
+
+Start with one URL â†’ one page â†’ editable Figma layers â†’ a working plugin import. Do not start by crawling an entire website. First prove that your converter can reproduce one modern landing page with editable text, images, buttons and frames. Then add multi-page crawling, responsive layouts and the downloadable ZIP workflow.
+
+The hardest part is not scraping the HTML; it is translating browser layout and CSS into a useful, editable design hierarchy.
+
+For the next step, the most important decision is how you want users to receive their Figma design.
+
+Choose the export experience you want to build first so the implementation can be designed around it.
+
+Answer 2 questions
+

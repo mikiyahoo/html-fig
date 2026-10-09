@@ -1,0 +1,444 @@
+﻿Let's build Phase 1 of your HTML-to-Figma web app: enter a website URL, render the real page in a browser, inspect its HTML/CSS, capture a screenshot, and collect accessible images and other assets.
+
+We'll build the foundation so Phase 2 can convert the captured page into editable Figma layers, rather than having to rewrite the app.
+
+## Phase 1 â€” Website capture engine
+
+URL import
+
+Accept and validate a website URL.
+
+Browser rendering
+
+Use Playwright and Chromium to render the page.
+
+Page extraction
+
+Collect DOM structure, computed styles, fonts, colors, images and element positions.
+
+Capture package
+
+Save the screenshot, extracted JSON and downloaded assets into a ZIP-ready project.
+
+## Build Phase 1 with this implementation prompt
+
+Paste this into your coding AI agent in the project you want to use. It instructs the agent to implement the actual application, not just create a UI mockup.
+
+PHASE 1 â€” Build the Website Capture Engine for HTML-to-Figma
+
+# PHASE 1 â€” Build the Website Capture Engine for HTML-to-Figma
+
+## Project objective
+
+Build the first working phase of a web application that converts a website URL into structured website data for eventual reconstruction as an editable Figma design.
+
+The user enters a URL, the system opens the website in a real Chromium browser, captures its rendered appearance, extracts relevant HTML/CSS properties, collects accessible assets, and creates a structured export package.
+
+**This must be a functional implementation, not a static prototype.**
+
+## 1. Technology stack
+
+* Frontend: Next.js with App Router, TypeScript, and Tailwind CSS.
+
+* Backend: Next.js API routes or route handlers.
+
+* Browser automation: Playwright with Chromium.
+
+* Validation: Zod.
+
+* File packaging: JSZip.
+
+* HTML processing: DOM inspection inside the browser, returning sanitized JSON.
+
+* Storage: temporary local filesystem storage for development.
+
+* Testing: Vitest and Playwright tests.
+
+Use compatible, stable package versions. Keep browser automation and filesystem operations server-side.
+
+## 2. Application interface
+
+Create a polished, modern SaaS interface with the following elements:
+
+### Dashboard
+
+* Product name: Web to Figma.
+
+* Primary action: Import Website.
+
+* Recent capture projects.
+
+* Capture status and timestamps.
+
+* Empty state explaining how to import the first website.
+
+### Import panel
+
+* URL input with validation.
+
+* Viewport selection: Desktop, Tablet, Mobile.
+
+* Default viewport: Desktop, 1440 Ã— 900.
+
+* Optional full-page screenshot setting.
+
+* Capture assets checkbox.
+
+* Start Capture button.
+
+### Capture workspace
+
+Display:
+
+* Website URL and page title.
+
+* Screenshot preview.
+
+* Page dimensions.
+
+* Number of extracted elements.
+
+* Number of images and external assets.
+
+* Detected fonts and colors.
+
+* Current capture status.
+
+* Errors and warnings.
+
+* Download Capture Package button.
+
+Use clear loading states for validation, browser launch, page rendering, extraction, asset collection, and packaging.
+
+## 3. URL validation and browser security
+
+Implement strict server-side validation.
+
+* Allow HTTP and HTTPS only.
+
+* Reject localhost, loopback, private, link-local, multicast and reserved IP addresses.
+
+* Block cloud metadata endpoints and internal network destinations.
+
+* Resolve DNS and validate every resolved address.
+
+* Revalidate redirect destinations and prevent DNS rebinding where practical.
+
+* Restrict navigation and subresource requests to safe public destinations.
+
+* Set page navigation and total capture timeouts.
+
+* Limit response sizes, asset counts, page dimensions and concurrent browser jobs.
+
+* Run Chromium in an isolated worker or container with restricted network access in production.
+
+* Never expose arbitrary filesystem access or shell execution through the URL input.
+
+* Do not bypass website authentication, CAPTCHA, access controls or anti-bot protections.
+
+Protect against SSRF at both the initial URL and subsequent browser requests. Do not rely on string checks alone.
+
+## 4. Playwright capture engine
+
+Create a server-side capture service that:
+
+1. Validates the requested URL.
+
+2. Launches Chromium in headless mode.
+
+3. Creates an isolated browser context.
+
+4. Applies the selected viewport.
+
+5. Navigates to the URL with a bounded timeout.
+
+6. Waits for the DOM to become usable and for a short, bounded rendering-stability period.
+
+7. Records navigation failures and console errors.
+
+8. Captures a viewport screenshot.
+
+9. Optionally captures a full-page screenshot with strict dimension limits.
+
+10. Extracts page metadata and rendered element information.
+
+11. Collects permitted image and font assets when enabled.
+
+12. Returns structured capture results.
+
+13. Closes browser contexts and cleans up temporary files even if an error occurs.
+
+Do not require network idle indefinitely. Many modern websites keep connections open.
+
+## 5. Extracted data schema
+
+Create a versioned JSON schema with these fields:
+
+### Page metadata
+
+* Original URL and final URL.
+
+* Page title and description.
+
+* Viewport width and height.
+
+* Document scroll width and height.
+
+* Capture timestamp.
+
+* Capture schema version.
+
+### Element information
+
+For each supported visible DOM element, extract:
+
+* Stable capture ID.
+
+* Parent ID and child relationships.
+
+* HTML tag and semantic role.
+
+* Text content.
+
+* Element type.
+
+* Bounding rectangle: x, y, width, height.
+
+* Computed display, position, flex and grid properties.
+
+* Padding, margin and gap.
+
+* Font family, size, weight, line height and text alignment.
+
+* Text color and background color.
+
+* Border width, style, color and radius.
+
+* Box shadow and opacity.
+
+* Image source and alternative text where applicable.
+
+* Visibility and stacking order.
+
+* Relevant CSS properties for later conversion.
+
+Support common page elements: sections, containers, headings, paragraphs, links, buttons, images, navigation, lists, cards, forms and basic tables.
+
+Exclude script contents, password values, hidden form values, cookies, authentication tokens and other sensitive data.
+
+Normalize non-finite numeric values and handle elements with missing or inaccessible styles.
+
+### Asset manifest
+
+For each collected asset, record:
+
+* Original URL.
+
+* Asset type.
+
+* MIME type.
+
+* Download status.
+
+* Local package-relative path when saved.
+
+* File size.
+
+* Relevant alt text where available.
+
+Avoid duplicate downloads using normalized URLs and content hashes.
+
+## 6. Asset collection
+
+Support publicly accessible images and SVGs initially.
+
+* Preserve original files where possible.
+
+* Generate unique, safe filenames.
+
+* Enforce per-file and total download limits.
+
+* Validate content types and file signatures.
+
+* Block private-network asset destinations and unsafe redirects.
+
+* Do not execute downloaded files.
+
+* Keep a manifest of assets that failed to download.
+
+* Record external font references and CSS font-family declarations.
+
+* Do not claim a font has been downloaded if only its name was detected.
+
+For Phase 1, do not attempt to reconstruct CSS pseudo-elements, animations or complex canvas drawings as native design objects. Record limitations for future phases.
+
+## 7. API endpoints
+
+Implement a clean service layer and these endpoints:
+
+POST /api/captures
+
+* Accept URL and capture settings.
+
+* Validate the request.
+
+* Start a capture.
+
+* Return a capture ID and status.
+
+GET /api/captures/\(id\)
+
+* Return status, metadata, errors and available capture results.
+
+GET /api/captures/\(id\)/screenshot
+
+* Serve the stored screenshot safely.
+
+GET /api/captures/\(id\)/export
+
+* Generate and return a ZIP file containing the capture results.
+
+For a local MVP, synchronous capture may be used for small pages with strict timeouts. Design the service so it can later use background jobs for long-running captures.
+
+Add appropriate error handling, HTTP status codes, request validation and cleanup.
+
+## 8. ZIP export format
+
+Create a downloadable ZIP with this structure:
+
+website-capture.zip
+
+* manifest.json
+
+* page.json
+
+* screenshots/
+
+  * viewport.png
+
+  * full-page.png (if enabled)
+
+* assets/
+
+  * downloaded images and SVGs
+
+* README.md
+
+The manifest must contain the capture version, source URL, timestamp, asset list, capture settings, warnings and package contents.
+
+The page JSON must contain normalized page metadata and element records, not raw executable HTML.
+
+The package should be designed for future import by a Figma plugin.
+
+## 9. Reliability and user experience
+
+* Show clear progress messages without inventing exact percentages.
+
+* Provide actionable errors for invalid URLs, blocked destinations, timeouts and unsupported pages.
+
+* Handle missing images, web fonts and incomplete page loads gracefully.
+
+* Prevent duplicate submissions while a capture is running.
+
+* Clean up temporary capture data according to a configurable retention period.
+
+* Keep large capture operations from blocking the frontend.
+
+* Make the interface responsive and accessible.
+
+## 10. Testing requirements
+
+Add automated tests for:
+
+* URL validation.
+
+* Private IP and redirect rejection.
+
+* Unsupported URL protocols.
+
+* Basic HTML page extraction.
+
+* Text, image, button and layout property extraction.
+
+* Missing and failed assets.
+
+* Screenshot creation.
+
+* Full-page capture limits.
+
+* ZIP contents and valid JSON.
+
+* Browser cleanup on failure.
+
+* API error handling.
+
+Use controlled local test pages for most tests rather than relying on external websites.
+
+## 11. Definition of done
+
+Phase 1 is complete only when:
+
+1. The application starts locally using documented commands.
+
+2. A user can submit a public website URL.
+
+3. Chromium actually renders the requested page.
+
+4. A screenshot is produced and displayed.
+
+5. The app extracts meaningful DOM structure and computed styles.
+
+6. Asset downloads work within defined security limits.
+
+7. The extracted JSON is valid and contains parent-child relationships.
+
+8. The ZIP download works and contains the documented files.
+
+9. Failure cases produce useful errors and clean up resources.
+
+10. Automated tests pass.
+
+## 12. Implementation instructions
+
+First inspect the existing repository, package manager, folder structure and current implementation. Preserve working features and follow existing conventions where reasonable.
+
+Then implement the complete Phase 1 workflow, including dependencies, services, API endpoints, UI, tests and documentation. Do not replace real browser capture with mock data.
+
+If the repository already contains an export or project system, integrate with it instead of creating a conflicting duplicate.
+
+At completion, provide:
+
+* Files created or modified.
+
+* Installation commands.
+
+* Playwright/Chromium setup instructions.
+
+* Environment variables.
+
+* Development and production run commands.
+
+* Test results.
+
+* Known limitations.
+
+* The exact manual steps needed to verify URL capture and ZIP export.
+
+Do not start Phase 2 until Phase 1's acceptance tests pass.
+
+## What comes after Phase 1?
+
+Phase 2 â€” HTML to design tree
+
+Transform the captured element data into normalized design nodes with layout, typography, colors, images and reusable component information.
+
+Phase 3 â€” Figma plugin
+
+Import the design tree and create editable native Figma frames, text, shapes and images.
+
+Phase 4 â€” Multi-page website import
+
+Crawl internal pages, select which pages to convert, and export the entire website as one organized design package.
+
+My advice: complete Phase 1 against several different websites before moving forward. If the extracted layout and styles are accurate, the later Figma conversion will be much easier.
+
