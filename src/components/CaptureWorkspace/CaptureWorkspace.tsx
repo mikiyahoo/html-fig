@@ -83,7 +83,7 @@ export default function CaptureWorkspace({ status, result, results, batchExportU
           <div className="p-6 border-b border-gray-100 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-gray-900">
-                {results.length > 1 ? `${results.length} Pages Captured` : "Capture Complete"}
+                {results.length > 1 ? `${results.length} Page Layouts Captured` : "Capture Complete"}
               </h2>
               <p className="text-sm text-gray-500 mt-0.5">{r.originalUrl}</p>
             </div>

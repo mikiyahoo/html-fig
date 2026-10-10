@@ -86,9 +86,9 @@ export async function createSiteCaptureZip(captures: CaptureResult[]): Promise<B
     "# Website Capture Package",
     "",
     "Each page folder contains its own `design.json`, `page.json`, screenshot, and assets.",
-    "Import this ZIP into the Web to Figma plugin to create one Figma frame per captured page.",
+    "Import this ZIP into the Web to Figma plugin to create one Figma frame per captured page layout and viewport.",
     "",
-    `Captured pages: ${pageManifest.length}`,
+    `Captured page layouts: ${pageManifest.length}`,
   ].join("\n"));
   return zip.generateAsync({ type: "nodebuffer" });
 }

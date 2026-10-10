@@ -10,6 +10,7 @@ export const runtime = "nodejs";
 const batchSchema = z.object({
   urls: z.array(z.string().url()).min(1).max(10),
   viewport: z.enum(["desktop", "tablet", "mobile"]).optional(),
+  viewports: z.array(z.enum(["desktop", "tablet", "mobile"])).min(1).max(3).optional(),
   fullPageScreenshot: z.boolean().optional(),
   captureAssets: z.boolean().optional(),
   captureSchemaVersion: z.number().optional(),
@@ -25,6 +26,10 @@ export async function POST(request: NextRequest) {
     }
 
     const uniqueUrls = [...new Set(parsed.data.urls)];
+    const viewports = [...new Set(parsed.data.viewports || [parsed.data.viewport || "desktop"])];
+    if (uniqueUrls.length * viewports.length > 10) {
+      return NextResponse.json({ error: "Capture batch is too large", details: "Capture at most 10 page layouts per import. Responsive imports support up to 3 selected pages." }, { status: 400 });
+    }
     const validatedUrls: string[] = [];
     let origin: string | undefined;
     for (const rawUrl of uniqueUrls) {
@@ -45,15 +50,17 @@ export async function POST(request: NextRequest) {
     const captures = [];
     const failures: Array<{ url: string; error: string }> = [];
     for (const url of validatedUrls) {
-      try {
-        captures.push(await startCapture(url, {
-          viewport: parsed.data.viewport || "desktop",
-          fullPageScreenshot: parsed.data.fullPageScreenshot ?? false,
-          captureAssets: parsed.data.captureAssets ?? true,
-          captureSchemaVersion: parsed.data.captureSchemaVersion || 1,
-        }));
-      } catch (error) {
-        failures.push({ url, error: error instanceof Error ? error.message : "Capture failed" });
+      for (const viewport of viewports) {
+        try {
+          captures.push(await startCapture(url, {
+            viewport,
+            fullPageScreenshot: parsed.data.fullPageScreenshot ?? false,
+            captureAssets: parsed.data.captureAssets ?? true,
+            captureSchemaVersion: parsed.data.captureSchemaVersion || 1,
+          }));
+        } catch (error) {
+          failures.push({ url: `${url} (${viewport})`, error: error instanceof Error ? error.message : "Capture failed" });
+        }
       }
     }
 

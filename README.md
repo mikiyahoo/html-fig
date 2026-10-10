@@ -8,6 +8,7 @@ A Next.js application that captures a website page and prepares structured data 
 - Phase 2: Versioned design tree with layout and styling hints in `design.json`.
 - Phase 3: Companion Figma plugin that imports editable frames, text, and packaged images.
 - Phase 4: Same-origin page discovery, selection, multi-page capture, and one website ZIP.
+- Responsive capture: Optional desktop, tablet, and mobile layouts, imported as viewport-labeled Figma frames (up to 3 pages per responsive batch).
 
 The plugin creates nodes inside Figma; the web app does not generate a `.fig` file. Grid layout, CSS backgrounds, complex effects, and some image/font formats are represented with warnings or simplified nodes.
 

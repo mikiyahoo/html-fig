@@ -6,7 +6,7 @@ import { validateUrl, VIEWPORT_LABELS } from "@/lib/url-validator";
 import { Loader2, AlertCircle } from "lucide-react";
 
 interface ImportPanelProps {
-  onImport: (input: Omit<CaptureInput, "url"> & { urls: string[] }) => void;
+  onImport: (input: Omit<CaptureInput, "url"> & { urls: string[]; viewports: Viewport[] }) => void;
   disabled: boolean;
   error?: string;
   progress?: string;
@@ -15,6 +15,7 @@ interface ImportPanelProps {
 export default function ImportPanel({ onImport, disabled, error, progress }: ImportPanelProps) {
   const [url, setUrl] = useState("");
   const [viewport, setViewport] = useState<Viewport>("desktop");
+  const [responsiveLayouts, setResponsiveLayouts] = useState(false);
   const [fullPageScreenshot, setFullPageScreenshot] = useState(false);
   const [captureAssets, setCaptureAssets] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -71,11 +72,14 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
     onImport({
       urls: selectedPages,
       viewport,
+      viewports: responsiveLayouts ? ["desktop", "tablet", "mobile"] : [viewport],
       fullPageScreenshot,
       captureAssets,
       captureSchemaVersion: 1,
     });
   };
+
+  const responsivePageLimitReached = responsiveLayouts && selectedPages.length > 3;
 
   return (
     <form
@@ -163,7 +167,7 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
               value={viewport}
               onChange={(e) => setViewport(e.target.value as Viewport)}
               className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus-ring"
-              disabled={disabled}
+              disabled={disabled || responsiveLayouts}
             >
               {(Object.keys(VIEWPORT_LABELS) as Viewport[]).map((v) => (
                 <option key={v} value={v}>
@@ -172,6 +176,21 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
               ))}
             </select>
           </div>
+
+          <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-3">
+            <input
+              id="responsiveLayouts"
+              type="checkbox"
+              checked={responsiveLayouts}
+              onChange={(event) => setResponsiveLayouts(event.target.checked)}
+              className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              disabled={disabled}
+            />
+            <span>
+              <span className="block text-sm font-medium text-gray-700">Capture responsive layouts</span>
+              <span className="block text-xs text-gray-500">Creates desktop, tablet, and mobile frames. Select up to 3 pages per responsive import.</span>
+            </span>
+          </label>
 
           {/* Full Page Screenshot */}
           <div className="flex items-center justify-between">
@@ -188,6 +207,10 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
             />
           </div>
         </div>
+
+        {responsivePageLimitReached && (
+          <p role="alert" className="text-sm text-amber-700">Responsive imports are limited to 3 pages per batch. Deselect {selectedPages.length - 3} page(s) to continue.</p>
+        )}
 
         {/* Capture Assets */}
         <div className="flex items-center justify-between">
@@ -208,7 +231,7 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
         <div className="flex gap-3 pt-4">
           <button
             type="submit"
-            disabled={disabled || selectedPages.length === 0}
+            disabled={disabled || selectedPages.length === 0 || responsivePageLimitReached}
             className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {disabled ? (
@@ -221,7 +244,7 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                Import {selectedPages.length || "Selected"} Page{selectedPages.length === 1 ? "" : "s"}
+                Import {selectedPages.length || "Selected"} Page{selectedPages.length === 1 ? "" : "s"}{responsiveLayouts ? " · 3 sizes" : ""}
               </>
             )}
           </button>

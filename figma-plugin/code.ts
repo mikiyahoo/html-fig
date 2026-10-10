@@ -40,6 +40,7 @@ interface DesignDocument {
   captureId: string;
   sourceUrl: string;
   pageTitle: string;
+  viewport?: { width: number; height: number };
   root: DesignNode;
   warnings: string[];
 }
@@ -71,14 +72,18 @@ figma.ui.onmessage = async (message: ImportMessage | { type: "cancel" }) => {
       figma.currentPage.appendChild(root);
       root.x = Math.round(figma.viewport.center.x - root.width / 2 + index * (root.width + 80));
       root.y = Math.round(figma.viewport.center.y - root.height / 2);
-      root.name = page.design.pageTitle || `Imported Page ${index + 1}`;
+      const title = page.design.pageTitle || `Imported Page ${index + 1}`;
+      const viewport = page.design.viewport;
+      root.name = viewport
+        ? `${title} — ${viewportLabel(viewport.width)} (${viewport.width} × ${viewport.height})`
+        : title;
       roots.push(root);
       layerCount += countNodes(page.design.root);
       imageCount += countNodes(page.design.root, "IMAGE");
       notes.push(...page.design.warnings);
     }
     figma.viewport.scrollAndZoomIntoView(roots);
-    figma.ui.postMessage({ type: "complete", text: `Imported ${message.pages.length} page(s) and ${layerCount} editable layers.` });
+    figma.ui.postMessage({ type: "complete", text: `Imported ${message.pages.length} page layout(s) and ${layerCount} editable layers.` });
     if (notes.length || imageCount) {
       if (imageCount) notes.push("Image layers are included where their packaged files use PNG, JPEG, GIF, or SVG.");
       figma.ui.postMessage({ type: "warnings", warnings: notes });
@@ -220,6 +225,12 @@ function toSolidPaint(color: DesignColor): SolidPaint {
 
 function countNodes(node: DesignNode, type?: DesignNode["type"]): number {
   return (type ? Number(node.type === type) : 1) + (node.children || []).reduce((count, child) => count + countNodes(child, type), 0);
+}
+
+function viewportLabel(width: number): string {
+  if (width <= 480) return "Mobile";
+  if (width <= 1024) return "Tablet";
+  return "Desktop";
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -8,6 +8,7 @@ import type { CaptureResult, CaptureStatus } from "@/lib/types";
 
 type CaptureOptions = {
   viewport: "desktop" | "tablet" | "mobile";
+  viewports: Array<"desktop" | "tablet" | "mobile">;
   fullPageScreenshot: boolean;
   captureAssets: boolean;
   captureSchemaVersion: number;
@@ -39,7 +40,7 @@ export default function Home() {
       id: "pending",
       originalUrl: input.urls[0] || "",
       state: "running",
-      progress: `Capturing ${input.urls.length} selected page(s)…`,
+      progress: `Capturing ${input.urls.length * input.viewports.length} page layout(s)…`,
       errors: [],
       warnings: [],
       screenshotUrl: null,
@@ -68,7 +69,7 @@ export default function Home() {
         batchId: payload.batchId,
         originalUrl: first.originalUrl,
         state: "completed",
-        progress: `Captured ${imported.length} page(s)`,
+        progress: `Captured ${imported.length} page layout(s)`,
         errors: failures.map((failure) => `${failure.url}: ${failure.error}`),
         warnings: imported.flatMap((capture) => capture.warnings),
         screenshotUrl: `/api/captures/${first.id}/screenshot`,
@@ -76,7 +77,7 @@ export default function Home() {
         startedAt: first.captureTimestamp,
         completedAt: new Date().toISOString(),
       });
-      const recent: CaptureStatus = { id: first.id, batchId: payload.batchId as string, originalUrl: first.originalUrl, state: "completed", progress: `Captured ${imported.length} page(s)`, errors: failures.map((failure) => failure.error), warnings: imported.flatMap((capture) => capture.warnings), screenshotUrl: `/api/captures/${first.id}/screenshot`, elapsedTime: 0, startedAt: first.captureTimestamp, completedAt: new Date().toISOString() };
+      const recent: CaptureStatus = { id: first.id, batchId: payload.batchId as string, originalUrl: first.originalUrl, state: "completed", progress: `Captured ${imported.length} page layout(s)`, errors: failures.map((failure) => failure.error), warnings: imported.flatMap((capture) => capture.warnings), screenshotUrl: `/api/captures/${first.id}/screenshot`, elapsedTime: 0, startedAt: first.captureTimestamp, completedAt: new Date().toISOString() };
       setRecentCaptures((current) => [
         recent,
         ...current.filter((capture) => capture.batchId !== payload.batchId && capture.id !== first.id),
@@ -125,7 +126,7 @@ export default function Home() {
         batchId: savedBatchId,
         originalUrl: first.originalUrl,
         state: "completed",
-        progress: `Captured ${loaded.length} page(s)`,
+        progress: `Captured ${loaded.length} page layout(s)`,
         errors: payload.failures?.map((failure: { url: string; error: string }) => `${failure.url}: ${failure.error}`) || [],
         warnings: loaded.flatMap((capture) => capture.warnings),
         screenshotUrl: `/api/captures/${first.id}/screenshot`,
