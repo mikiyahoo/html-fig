@@ -102,21 +102,32 @@ export default function ImportPanel({ onImport, disabled, error, progress, initi
           <label htmlFor="url" className="block text-sm font-medium text-gray-700 mb-2">
             Website URL
           </label>
-          <input
-            id="url"
-            type="text"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              setDiscoveredPages([]);
-              setSelectedPages([]);
-              setDiscoveryError(null);
-            }}
-            placeholder="https://example.com"
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus-ring"
-            disabled={disabled}
-            autoComplete="off"
-          />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <input
+              id="url"
+              type="text"
+              value={url}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                setDiscoveredPages([]);
+                setSelectedPages([]);
+                setDiscoveryError(null);
+              }}
+              placeholder="https://example.com"
+              className="min-w-0 flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus-ring"
+              disabled={disabled}
+              autoComplete="off"
+            />
+            <button
+              type="button"
+              onClick={handleDiscover}
+              disabled={disabled || isDiscovering}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              {isDiscovering ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isDiscovering ? "Finding pages…" : "Find pages on this website"}
+            </button>
+          </div>
           {validationError && (
             <p className="mt-2 flex items-center gap-1 text-sm text-red-600">
               <AlertCircle className="w-4 h-4" />
@@ -132,15 +143,6 @@ export default function ImportPanel({ onImport, disabled, error, progress, initi
         </div>
 
         <div className="space-y-3">
-          <button
-            type="button"
-            onClick={handleDiscover}
-            disabled={disabled || isDiscovering}
-            className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-          >
-            {isDiscovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            {isDiscovering ? "Finding pages…" : "Find pages on this website"}
-          </button>
           {discoveryError && <p className="text-sm text-red-600">{discoveryError}</p>}
           {discoveredPages.length > 0 && (
             <fieldset className="rounded-lg border border-gray-200 p-4">
@@ -166,8 +168,7 @@ export default function ImportPanel({ onImport, disabled, error, progress, initi
         </div>
 
         {/* Options */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Viewport */}
+        <div className="space-y-4">
           <div>
             <label htmlFor="viewport" className="block text-sm font-medium text-gray-700 mb-2">
               Viewport
@@ -176,7 +177,7 @@ export default function ImportPanel({ onImport, disabled, error, progress, initi
               id="viewport"
               value={viewport}
               onChange={(e) => setViewport(e.target.value as Viewport)}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus-ring"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus-ring sm:max-w-sm"
               disabled={disabled || responsiveLayouts}
             >
               {(Object.keys(VIEWPORT_LABELS) as Viewport[]).map((v) => (
@@ -187,26 +188,19 @@ export default function ImportPanel({ onImport, disabled, error, progress, initi
             </select>
           </div>
 
-          <label className="flex items-start gap-3 rounded-lg border border-gray-200 p-3">
+          <label htmlFor="responsiveLayouts" className="flex cursor-pointer items-center gap-3 text-sm font-medium text-gray-700">
             <input
               id="responsiveLayouts"
               type="checkbox"
               checked={responsiveLayouts}
               onChange={(event) => setResponsiveLayouts(event.target.checked)}
-              className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               disabled={disabled}
             />
-            <span>
-              <span className="block text-sm font-medium text-gray-700">Capture responsive layouts</span>
-              <span className="block text-xs text-gray-500">Creates desktop, tablet, and mobile frames. Select up to 3 pages per responsive import.</span>
-            </span>
+            Capture responsive layouts
           </label>
 
-          {/* Full Page Screenshot */}
-          <div className="flex items-center justify-between">
-            <label htmlFor="fullPageScreenshot" className="text-sm font-medium text-gray-700">
-              Full Page Screenshot
-            </label>
+          <label htmlFor="fullPageScreenshot" className="flex cursor-pointer items-center gap-3 text-sm font-medium text-gray-700">
             <input
               id="fullPageScreenshot"
               type="checkbox"
@@ -215,27 +209,25 @@ export default function ImportPanel({ onImport, disabled, error, progress, initi
               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               disabled={disabled}
             />
-          </div>
+            Full Page Screenshot
+          </label>
+
+          <label htmlFor="captureAssets" className="flex cursor-pointer items-center gap-3 text-sm font-medium text-gray-700">
+            <input
+              id="captureAssets"
+              type="checkbox"
+              checked={captureAssets}
+              onChange={(e) => setCaptureAssets(e.target.checked)}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              disabled={disabled}
+            />
+            Capture Assets
+          </label>
         </div>
 
         {responsivePageLimitReached && (
           <p role="alert" className="text-sm text-amber-700">Responsive imports are limited to 3 pages per batch. Deselect {selectedPages.length - 3} page(s) to continue.</p>
         )}
-
-        {/* Capture Assets */}
-        <div className="flex items-center justify-between">
-          <label htmlFor="captureAssets" className="text-sm font-medium text-gray-700">
-            Capture Assets
-          </label>
-          <input
-            id="captureAssets"
-            type="checkbox"
-            checked={captureAssets}
-            onChange={(e) => setCaptureAssets(e.target.checked)}
-            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            disabled={disabled}
-          />
-        </div>
 
         {/* Submit Button */}
         <div className="flex gap-3 pt-4">
