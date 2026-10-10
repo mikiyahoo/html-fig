@@ -246,6 +246,33 @@ export async function readBatchManifest(batchId: string): Promise<BatchManifest 
   return data ? JSON.parse(data.toString("utf8")) as BatchManifest : null;
 }
 
+/** Delete one recent project, including every page that belongs to a batch. */
+export async function deleteCaptureProject(captureId: string, batchId?: string): Promise<boolean> {
+  const batch = batchId ? await readBatchManifest(batchId) : null;
+  if (batchId && !batch) return false;
+  const captureIds = (batch ? batch.pageCaptureIds : [captureId]).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  const paths = [...captureIds.map((id) => `${id}/`), ...(batchId ? [`batches/${batchId}/`] : [])];
+
+  if (useBlobStorage()) {
+    const blobs = (await Promise.all(paths.map((prefix) => listAllBlobFiles(prefix)))).flat();
+    if (blobs.length === 0) return false;
+    await del(blobs.map((blob) => blob.pathname));
+    return true;
+  }
+
+  let deleted = false;
+  for (const relativePath of paths) {
+    const target = path.resolve(STORAGE_DIR, relativePath);
+    const root = path.resolve(STORAGE_DIR);
+    if (!target.startsWith(`${root}${path.sep}`)) continue;
+    if (fs.existsSync(target)) {
+      fs.rmSync(target, { recursive: true, force: true });
+      deleted = true;
+    }
+  }
+  return deleted;
+}
+
 /** Return saved captures and website packages, newest first, for the dashboard. */
 export async function listRecentCaptures(limit = 20): Promise<RecentCapture[]> {
   if (useBlobStorage()) {
@@ -335,11 +362,11 @@ async function writeStoredFiles(files: Array<{ path: string; body: Buffer | stri
   }
 }
 
-async function listAllBlobFiles() {
+async function listAllBlobFiles(relativePrefix = "") {
   const blobs: Awaited<ReturnType<typeof list>>["blobs"] = [];
   let cursor: string | undefined;
   do {
-    const page = await list({ prefix: `${BLOB_PREFIX}/`, limit: 1000, cursor });
+    const page = await list({ prefix: `${BLOB_PREFIX}/${relativePrefix}`, limit: 1000, cursor });
     blobs.push(...page.blobs);
     cursor = page.hasMore ? page.cursor : undefined;
   } while (cursor);

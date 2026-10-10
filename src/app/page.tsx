@@ -165,6 +165,22 @@ export default function Home() {
     }
   };
 
+  const handleDeleteCapture = async (capture: CaptureStatus) => {
+    const projectName = capture.originalUrl;
+    if (!window.confirm(`Delete this recent capture project?\n\n${projectName}\n\nThis also deletes its saved capture files.`)) return;
+    try {
+      const query = capture.batchId ? `?batchId=${encodeURIComponent(capture.batchId)}` : "";
+      const response = await fetch(`/api/captures/${encodeURIComponent(capture.id)}${query}`, { method: "DELETE" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "Could not delete this capture project.");
+      }
+      setRecentCaptures((current) => current.filter((item) => capture.batchId ? item.batchId !== capture.batchId : item.id !== capture.id));
+    } catch (deleteError) {
+      window.alert(deleteError instanceof Error ? deleteError.message : "Could not delete this capture project.");
+    }
+  };
+
   return (
     <main className="min-h-screen bg-white">
       {view !== "dashboard" && (
@@ -178,6 +194,7 @@ export default function Home() {
         <Dashboard
           onNavigateToCapture={() => setView("import")}
           onViewCapture={handleViewCapture}
+          onDeleteCapture={handleDeleteCapture}
           recentCaptures={recentCaptures}
         />
       )}

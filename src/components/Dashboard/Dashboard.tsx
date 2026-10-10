@@ -1,15 +1,16 @@
 "use client";
 
 import type { CaptureStatus } from "@/lib/types";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { ArrowRight, ExternalLink, Trash2 } from "lucide-react";
 
 interface DashboardProps {
   onNavigateToCapture: () => void;
   onViewCapture: (captureId: string, batchId?: string) => void;
+  onDeleteCapture: (capture: CaptureStatus) => Promise<void>;
   recentCaptures: CaptureStatus[];
 }
 
-export default function Dashboard({ onNavigateToCapture, onViewCapture, recentCaptures }: DashboardProps) {
+export default function Dashboard({ onNavigateToCapture, onViewCapture, onDeleteCapture, recentCaptures }: DashboardProps) {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -38,18 +39,29 @@ export default function Dashboard({ onNavigateToCapture, onViewCapture, recentCa
           <ul className="divide-y divide-gray-100">
             {recentCaptures.map((capture) => (
               <li key={capture.id} className="px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <div>
-                  <p className="font-medium text-gray-900 truncate max-w-md">{capture.originalUrl}</p>
+                <div className="min-w-0 mr-4">
+                  <p className="font-medium text-gray-900 truncate max-w-md" title={capture.originalUrl}>{capture.originalUrl}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {capture.state} - {new Date(capture.completedAt || capture.startedAt || "").toLocaleString()}
                   </p>
                 </div>
-                <button
-                  onClick={() => onViewCapture(capture.id, capture.batchId)}
-                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                >
-                  View <ExternalLink className="w-3 h-3 inline ml-1" />
-                </button>
+                <div className="flex shrink-0 items-center gap-4">
+                  <button
+                    onClick={() => onViewCapture(capture.id, capture.batchId)}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    View <ExternalLink className="w-3 h-3 inline ml-1" />
+                  </button>
+                  <button
+                    onClick={() => onDeleteCapture(capture)}
+                    title="Delete recent project"
+                    aria-label={`Delete capture project ${capture.originalUrl}`}
+                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-700 focus-ring"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Delete</span>
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
