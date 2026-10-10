@@ -116,13 +116,13 @@ export default function Dashboard({ onImport, onViewCapture, onDeleteCapture, re
         <main id="dashboard" className="min-w-0 flex-1 px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
           <section className="relative isolate overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/80 to-indigo-100/80 p-6 shadow-sm sm:p-9 xl:p-11">
             <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 -z-10 h-72 w-[42rem] rounded-full bg-blue-200/30 blur-3xl" />
-            <div className="grid items-center gap-10 xl:grid-cols-[1.15fr_.85fr]">
-              <div>
+            <div className="relative">
+              <div className="relative z-10">
                 <span className="inline-flex rounded-full border border-blue-200 bg-white/80 px-3 py-1 text-xs font-semibold text-blue-700">Convert websites to Figma</span>
                 <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Web to Figma</h1>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">Turn a website into editable design layers. Capture the page, convert its structure, then open it in Figma.</p>
 
-                <form className="mt-6 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-md sm:flex-row" onSubmit={(event) => { event.preventDefault(); void discoverPages(); }}>
+                <form className="relative z-20 mt-6 flex w-full flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-md sm:flex-row" onSubmit={(event) => { event.preventDefault(); void discoverPages(); }}>
                   <label className="flex min-w-0 flex-1 items-center gap-3 px-3">
                     <Link2 className="h-5 w-5 shrink-0 text-slate-400" />
                     <input id="website-url" type="url" required disabled={disabled || isDiscovering} value={url} onChange={(event) => { setUrl(event.target.value); setDiscoveredPages([]); setSelectedPages([]); setDiscoveryError(null); }} placeholder="https://example.com" className="h-11 w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400" />
@@ -154,7 +154,7 @@ export default function Dashboard({ onImport, onViewCapture, onDeleteCapture, re
                 </div>}
               </div>
 
-              <div aria-hidden="true" className="relative mx-auto hidden h-56 w-full max-w-lg items-center justify-center xl:flex">
+              <div aria-hidden="true" className="pointer-events-none absolute right-0 top-0 hidden h-56 w-[40%] items-center justify-center opacity-90 xl:flex">
                 <div className="absolute left-2 top-8 h-40 w-56 -rotate-3 rounded-xl border border-blue-100 bg-white p-3 shadow-lg">
                   <div className="mb-3 flex gap-1"><i className="h-2 w-2 rounded-full bg-red-300" /><i className="h-2 w-2 rounded-full bg-amber-300" /><i className="h-2 w-2 rounded-full bg-emerald-300" /></div>
                   <div className="h-14 rounded-lg bg-gradient-to-r from-sky-100 to-indigo-100" />
