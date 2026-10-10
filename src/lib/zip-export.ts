@@ -47,6 +47,9 @@ export async function createCaptureZip(capture: CaptureResult): Promise<Buffer> 
 
   // Generate ZIP file
   const zipBlob = await zip.generateAsync({ type: "nodebuffer" });
+
+  // `jszip` resolves `type: "nodebuffer"` to a Uint8Array. Node's `Buffer`
+  // accepts that and NextResponse treats a Buffer-like as BodyInit.
   return zipBlob;
 }
 
