@@ -194,7 +194,7 @@ export async function extractElements(page: Page): Promise<ElementInfo[]> {
   return page.evaluate(() => {
     const tags = new Set(["section", "div", "header", "footer", "nav", "main", "article", "aside",
       "h1", "h2", "h3", "h4", "h5", "h6", "p", "a", "button", "img", "span", "ul", "ol", "li",
-      "table", "form", "input", "label", "select", "textarea"]);
+      "table", "form", "input", "label", "select", "textarea", "hr"]);
     const nodes = Array.from(document.body.querySelectorAll<HTMLElement>("*"))
       .filter((el) => tags.has(el.tagName.toLowerCase()) && el.getAttribute("type") !== "password")
       .filter((el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; });

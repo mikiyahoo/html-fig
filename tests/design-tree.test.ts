@@ -163,6 +163,15 @@ describe("design tree conversion", () => {
     expect(document.warnings).toEqual([]);
   });
 
+  it("converts captured rules and circular elements to editable shapes", () => {
+    const document = buildDesignTree(capture([
+      element({ id: "divider", tag: "hr", backgroundColor: "rgb(180, 180, 180)" }),
+      element({ id: "dot", tag: "div", boundingRect: { x: 120, y: 0, width: 24, height: 24 }, borderRadius: "50%", backgroundColor: "rgb(0, 120, 255)" }),
+    ]));
+
+    expect(document.root.children.map((node) => node.type)).toEqual(["RECTANGLE", "ELLIPSE"]);
+  });
+
   it("warns about grid layouts, uncollected images, and CSS backgrounds", () => {
     const document = buildDesignTree(capture([
       element({ id: "grid", tag: "div", display: "grid", cssProperties: { "background-image": "linear-gradient(red, blue)" } }),

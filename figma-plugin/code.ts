@@ -1,54 +1,12 @@
-interface DesignColor {
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-}
-
-interface DesignNode {
-  id: string;
-  name: string;
-  type: "FRAME" | "TEXT" | "IMAGE";
-  bounds: { x: number; y: number; width: number; height: number };
-  fills: DesignColor[];
-  strokes: DesignColor[];
-  strokeWidth: number;
-  cornerRadius: number;
-  opacity: number;
-  children: DesignNode[];
-  layout?: {
-    mode: "NONE" | "HORIZONTAL" | "VERTICAL";
-    gap: number;
-    padding: { top: number; right: number; bottom: number; left: number };
-    alignItems: string;
-    justifyContent: string;
-  };
-  text?: string;
-  textStyle?: {
-    fontFamily: string;
-    fontSize: number;
-    fontWeight: number;
-    lineHeight: number | null;
-    textAlign: string;
-    color: DesignColor | null;
-  };
-  image?: { sourceUrl: string; packagePath: string | null; alt: string };
-}
-
-interface DesignDocument {
-  schemaVersion: string;
-  captureId: string;
-  sourceUrl: string;
-  pageTitle: string;
-  viewport?: { width: number; height: number };
-  root: DesignNode;
-  warnings: string[];
-}
+import type { DesignColor, DesignDocument, DesignNode } from "../shared/design-schema";
+const SUPPORTED_SCHEMA_VERSION: DesignDocument["schemaVersion"] = "1.0.0";
 
 type ImportMessage = {
   type: "import";
   pages: Array<{ design: DesignDocument; assets: Record<string, Uint8Array> }>;
 };
+
+let importWarnings = new Set<string>();
 
 figma.showUI(__html__, { width: 420, height: 520, title: "Web to Figma Importer", themeColors: true });
 
@@ -63,8 +21,8 @@ figma.ui.onmessage = async (message: ImportMessage | { type: "cancel" }) => {
     if (!message.pages.length) throw new Error("No design pages were found in this ZIP.");
     const roots: FrameNode[] = [];
     let layerCount = 0;
-    let imageCount = 0;
     const notes: string[] = [];
+    importWarnings = new Set();
     for (const [index, page] of message.pages.entries()) {
       validateDesign(page.design);
       figma.ui.postMessage({ type: "progress", text: `Creating page ${index + 1} of ${message.pages.length}…` });
@@ -79,25 +37,25 @@ figma.ui.onmessage = async (message: ImportMessage | { type: "cancel" }) => {
         : title;
       roots.push(root);
       layerCount += countNodes(page.design.root);
-      imageCount += countNodes(page.design.root, "IMAGE");
       notes.push(...page.design.warnings);
     }
     figma.viewport.scrollAndZoomIntoView(roots);
-    figma.ui.postMessage({ type: "complete", text: `Imported ${message.pages.length} page layout(s) and ${layerCount} editable layers.` });
-    if (notes.length || imageCount) {
-      if (imageCount) notes.push("Image layers are included where their packaged files use PNG, JPEG, GIF, or SVG.");
-      figma.ui.postMessage({ type: "warnings", warnings: notes });
-    }
+    figma.ui.postMessage({ type: "complete", text: `Created ${message.pages.length} editable page layout(s) with ${layerCount} native layers. The document is ready in Figma.` });
+    notes.push(...importWarnings);
+    if (notes.length) figma.ui.postMessage({ type: "warnings", warnings: [...new Set(notes)] });
+    figma.ui.postMessage({ type: "save-instructions", text: "To download a genuine .fig file, use Figma’s File → Save local copy. This plugin does not create or rename a .fig export." });
   } catch (error) {
     figma.ui.postMessage({ type: "error", text: error instanceof Error ? error.message : "Import failed." });
   }
 };
 
-function validateDesign(design: DesignDocument): void {
-  if (!design || design.schemaVersion !== "1.0.0" || !design.root || design.root.type !== "FRAME") {
+function validateDesign(design: unknown): asserts design is DesignDocument {
+  if (!design || typeof design !== "object") throw new Error("This package does not contain a design document.");
+  const document = design as Partial<DesignDocument>;
+  if (document.schemaVersion !== SUPPORTED_SCHEMA_VERSION || !document.root || document.root.type !== "FRAME") {
     throw new Error("This ZIP does not contain a supported design.json file.");
   }
-  if (!Number.isFinite(design.root.bounds.width) || !Number.isFinite(design.root.bounds.height)) {
+  if (!Number.isFinite(document.root.bounds.width) || !Number.isFinite(document.root.bounds.height) || !Array.isArray(document.root.children)) {
     throw new Error("The design tree has invalid page dimensions.");
   }
 }
@@ -119,18 +77,23 @@ async function createDesignNode(node: DesignNode, assets: Record<string, Uint8Ar
     return text;
   }
 
-  if (node.type === "IMAGE" && node.image?.packagePath) {
-    const bytes = assets[node.image.packagePath];
+  if (node.type === "IMAGE") {
+    const packagePath = node.image?.packagePath;
+    const bytes = packagePath ? assets[packagePath] : undefined;
     if (bytes) {
-      const extension = node.image.packagePath.split(".").pop()?.toLowerCase();
+      const extension = packagePath?.split(".").pop()?.toLowerCase();
       if (extension === "svg") {
-        const svgFrame = figma.createNodeFromSvg(new TextDecoder().decode(bytes));
-        svgFrame.name = node.name;
-        svgFrame.resize(Math.max(1, node.bounds.width), Math.max(1, node.bounds.height));
-        svgFrame.x = node.bounds.x;
-        svgFrame.y = node.bounds.y;
-        svgFrame.opacity = clamp(node.opacity, 0, 1);
-        return svgFrame;
+        try {
+          const svgFrame = figma.createNodeFromSvg(new TextDecoder().decode(bytes));
+          svgFrame.name = node.name;
+          svgFrame.resize(Math.max(1, node.bounds.width), Math.max(1, node.bounds.height));
+          svgFrame.x = node.bounds.x;
+          svgFrame.y = node.bounds.y;
+          svgFrame.opacity = clamp(node.opacity, 0, 1);
+          return svgFrame;
+        } catch {
+          reportWarning(`SVG asset could not be imported as a vector: ${node.name}`);
+        }
       }
       try {
         const image = figma.createImage(bytes);
@@ -146,6 +109,21 @@ async function createDesignNode(node: DesignNode, assets: Record<string, Uint8Ar
         // Preserve a visible placeholder if the source image format is unsupported by Figma.
       }
     }
+    reportWarning(`Image asset is unavailable or unsupported: ${node.name}${node.image?.alt ? ` (${node.image.alt})` : ""}`);
+  }
+
+  if (node.type === "RECTANGLE" || node.type === "ELLIPSE") {
+    const shape = node.type === "ELLIPSE" ? figma.createEllipse() : figma.createRectangle();
+    shape.name = node.name;
+    shape.resize(Math.max(1, node.bounds.width), Math.max(1, node.bounds.height));
+    shape.x = node.bounds.x;
+    shape.y = node.bounds.y;
+    shape.opacity = clamp(node.opacity, 0, 1);
+    shape.fills = node.fills.map(toSolidPaint);
+    shape.strokes = node.strokes.map(toSolidPaint);
+    shape.strokeWeight = Math.max(0, node.strokeWidth);
+    if (node.type === "RECTANGLE") shape.cornerRadius = Math.max(0, node.cornerRadius);
+    return shape;
   }
 
   const frame = figma.createFrame();
@@ -181,6 +159,7 @@ async function loadFont(cssFamily: string, weight: number): Promise<FontName> {
   } catch {
     const fallback = { family: "Inter", style: "Regular" };
     await figma.loadFontAsync(fallback);
+    reportWarning(`Font “${family} ${style}” is unavailable in this Figma file; Inter Regular was used.`);
     return fallback;
   }
 }
@@ -225,6 +204,10 @@ function toSolidPaint(color: DesignColor): SolidPaint {
 
 function countNodes(node: DesignNode, type?: DesignNode["type"]): number {
   return (type ? Number(node.type === type) : 1) + (node.children || []).reduce((count, child) => count + countNodes(child, type), 0);
+}
+
+function reportWarning(message: string): void {
+  importWarnings.add(message);
 }
 
 function viewportLabel(width: number): string {

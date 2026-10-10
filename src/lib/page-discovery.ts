@@ -10,6 +10,7 @@ export function normalizeInternalPageLinks(baseUrl: string, links: string[], lim
 
   for (const href of links) {
     if (pages.length >= Math.max(1, limit)) break;
+    if (/\s/.test(href)) continue;
     try {
       const target = new URL(href, base);
       target.hash = "";

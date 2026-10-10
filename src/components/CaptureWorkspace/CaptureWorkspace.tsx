@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { CaptureStatus, CaptureResult } from "@/lib/types";
-import { X, Download, FileJson, Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { X, Download, FileJson, Loader2, AlertCircle, CheckCircle, ExternalLink, Copy } from "lucide-react";
 
 interface CaptureWorkspaceProps {
   status: CaptureStatus | null;
@@ -16,6 +16,32 @@ interface CaptureWorkspaceProps {
 export default function CaptureWorkspace({ status, result, results, batchExportUrl, onStatusChange, onResultChange }: CaptureWorkspaceProps) {
   const [isCapturing] = useState(false);
   const [showJson, setShowJson] = useState(false);
+  const [showFigmaInstructions, setShowFigmaInstructions] = useState(false);
+  const [figmaImportUrl, setFigmaImportUrl] = useState<string | null>(null);
+  const [figmaLinkError, setFigmaLinkError] = useState<string | null>(null);
+  const [isPreparingFigma, setIsPreparingFigma] = useState(false);
+
+  const openInFigma = async () => {
+    window.open("https://www.figma.com/files", "_blank", "noopener,noreferrer");
+    setShowFigmaInstructions(true);
+    setFigmaImportUrl(null);
+    setFigmaLinkError(null);
+    setIsPreparingFigma(true);
+    try {
+      const response = await fetch("/api/figma/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ captureIds: results.map((capture) => capture.id) }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Could not prepare the Figma transfer link.");
+      setFigmaImportUrl(payload.importUrl as string);
+    } catch (error) {
+      setFigmaLinkError(error instanceof Error ? error.message : "Could not prepare the Figma transfer link.");
+    } finally {
+      setIsPreparingFigma(false);
+    }
+  };
 
   if (isCapturing || status?.state === "running" || status?.state === "pending") {
     return (
@@ -175,10 +201,18 @@ export default function CaptureWorkspace({ status, result, results, batchExportU
             )}
 
             <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={openInFigma}
+                className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open in Figma
+              </button>
               <a
                 href={batchExportUrl || `/api/captures/${r.id}/export`}
                 download
-                className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 <Download className="w-4 h-4" />
                 {batchExportUrl ? "Download Website Package" : "Download Capture Package"}
@@ -188,6 +222,34 @@ export default function CaptureWorkspace({ status, result, results, batchExportU
                 View JSON
               </button>
             </div>
+            {showFigmaInstructions && (
+              <div role="dialog" aria-modal="true" aria-label="Open this capture in Figma" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowFigmaInstructions(false)}>
+                <section className="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+                  <header className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">Create an editable Figma design</h3>
+                    <button type="button" onClick={() => setShowFigmaInstructions(false)} aria-label="Close Figma instructions" className="rounded p-1 text-gray-500 hover:bg-gray-100"><X className="h-4 w-4" /></button>
+                  </header>
+                  <ol className="mb-4 list-decimal space-y-2 pl-5 text-sm text-gray-700">
+                    <li>In the Figma tab, open a Figma <b>Design</b> document.</li>
+                    <li>Launch <b>Web to Figma Importer</b> from <b>Plugins → Development</b>.</li>
+                    <li>Paste the secure transfer link below into the plugin and choose <b>Create Editable Design</b>.</li>
+                    <li>When the editable layers appear, use <b>File → Save local copy</b> in Figma to download a genuine <code>.fig</code> file.</li>
+                  </ol>
+                  {isPreparingFigma && <p className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="h-4 w-4 animate-spin" /> Preparing a private transfer link…</p>}
+                  {figmaLinkError && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{figmaLinkError}</p>}
+                  {figmaImportUrl && (
+                    <div className="space-y-2">
+                      <label htmlFor="figma-import-url" className="block text-sm font-medium text-gray-700">Transfer link · expires in 30 minutes</label>
+                      <div className="flex gap-2">
+                        <input id="figma-import-url" readOnly value={figmaImportUrl} className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-xs" />
+                        <button type="button" onClick={() => navigator.clipboard.writeText(figmaImportUrl)} className="inline-flex items-center gap-1 rounded bg-gray-100 px-3 py-2 text-sm text-gray-700 hover:bg-gray-200"><Copy className="h-4 w-4" /> Copy</button>
+                      </div>
+                    </div>
+                  )}
+                  <p className="mt-4 text-xs text-gray-500">This link is only for the Figma plugin to fetch this capture package. The ZIP download remains available as a secondary import option.</p>
+                </section>
+              </div>
+            )}
             {showJson && (
               <div role="dialog" aria-modal="true" aria-label="Capture JSON" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowJson(false)}>
                 <section className="flex max-h-[85vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>

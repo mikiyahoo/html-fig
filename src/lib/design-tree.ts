@@ -1,57 +1,7 @@
 import type { AssetManifest, CaptureResult, ElementInfo } from "./types";
+import { DESIGN_SCHEMA_VERSION, type DesignColor, type DesignDocument, type DesignNode } from "../../shared/design-schema";
 
-export interface DesignColor {
-  r: number;
-  g: number;
-  b: number;
-  a: number;
-}
-
-export interface DesignNode {
-  id: string;
-  sourceElementId: string;
-  name: string;
-  type: "FRAME" | "TEXT" | "IMAGE";
-  bounds: { x: number; y: number; width: number; height: number };
-  fills: DesignColor[];
-  strokes: DesignColor[];
-  strokeWidth: number;
-  cornerRadius: number;
-  opacity: number;
-  children: DesignNode[];
-  layout?: {
-    mode: "NONE" | "HORIZONTAL" | "VERTICAL";
-    gap: number;
-    padding: { top: number; right: number; bottom: number; left: number };
-    alignItems: string;
-    justifyContent: string;
-  };
-  text?: string;
-  textStyle?: {
-    fontFamily: string;
-    fontSize: number;
-    fontWeight: number;
-    lineHeight: number | null;
-    textAlign: string;
-    color: DesignColor | null;
-  };
-  image?: {
-    sourceUrl: string;
-    packagePath: string | null;
-    alt: string;
-  };
-  effects?: string;
-}
-
-export interface DesignDocument {
-  schemaVersion: "1.0.0";
-  captureId: string;
-  sourceUrl: string;
-  pageTitle: string;
-  viewport: { width: number; height: number };
-  root: DesignNode;
-  warnings: string[];
-}
+export type { DesignColor, DesignDocument, DesignNode } from "../../shared/design-schema";
 
 const TEXT_TAGS = new Set([
   "h1", "h2", "h3", "h4", "h5", "h6", "p", "span", "label", "li", "td", "th", "input", "textarea",
@@ -75,7 +25,9 @@ export function buildDesignTree(capture: CaptureResult): DesignDocument {
     const isButton = BUTTON_TAGS.has(element.tag);
     const isImage = element.tag === "img";
     const isText = TEXT_TAGS.has(element.tag) && !isButton;
-    const type: DesignNode["type"] = isImage ? "IMAGE" : isText ? "TEXT" : "FRAME";
+    const isEllipse = isCircularShape(element);
+    const isShape = element.tag === "hr" || isEllipse;
+    const type: DesignNode["type"] = isImage ? "IMAGE" : isText ? "TEXT" : isShape ? (isEllipse ? "ELLIPSE" : "RECTANGLE") : "FRAME";
     const rect = element.boundingRect;
     const parentRect = parent?.boundingRect;
     const text = (element.textContent || "").trim();
@@ -85,7 +37,7 @@ export function buildDesignTree(capture: CaptureResult): DesignDocument {
     const borderWidth = parsePixels(element.borderWidth);
     const borderColor = element.borderStyle === "none" ? null : parseCssColor(element.borderColor);
     const rawChildren = childrenByParent.get(element.id) ?? [];
-    const nestedChildren = isText
+    const nestedChildren = isText || isShape
       ? []
       : rawChildren
           .filter((child) => !(isButton && TEXT_TAGS.has(child.tag)))
@@ -136,10 +88,14 @@ export function buildDesignTree(capture: CaptureResult): DesignDocument {
       };
       if (!node.image.packagePath) warnings.add(`Image asset is not packaged: ${element.alt || sourceUrl || name}`);
     }
-    if (element.boxShadow && element.boxShadow !== "none") node.effects = element.boxShadow;
     const backgroundImage = element.cssProperties["background-image"];
     if (backgroundImage && backgroundImage !== "none") warnings.add(`Background image or gradient is not converted to a native fill: ${name}`);
     if (element.display === "grid") warnings.add(`Grid layout is represented with positioned nodes: ${name}`);
+    if (element.boxShadow && element.boxShadow !== "none") warnings.add(`Box shadow is not converted to a native effect: ${name}`);
+    for (const property of ["transform", "filter", "clip-path", "mask-image", "mix-blend-mode", "backdrop-filter"]) {
+      const value = element.cssProperties[property];
+      if (value && value !== "none" && value !== "normal") warnings.add(`${property} is not converted: ${name}`);
+    }
     return node;
   };
 
@@ -202,7 +158,7 @@ export function buildDesignTree(capture: CaptureResult): DesignDocument {
   };
 
   return {
-    schemaVersion: "1.0.0",
+    schemaVersion: DESIGN_SCHEMA_VERSION,
     captureId: capture.id,
     sourceUrl: capture.finalUrl,
     pageTitle: capture.pageMetadata.title,
@@ -260,6 +216,13 @@ function makeNodeName(element: ElementInfo, index: number, text: string): string
   const label = text.replace(/\s+/g, " ").slice(0, 36);
   const semantic = element.tag === "img" ? "Image" : element.tag === "button" ? "Button" : element.tag === "a" ? "Link" : element.tag.toUpperCase();
   return label ? `${semantic} — ${label}` : `${semantic} ${index}`;
+}
+
+function isCircularShape(element: ElementInfo): boolean {
+  const { width, height } = element.boundingRect;
+  if (!width || !height || Math.abs(width - height) > 2) return false;
+  return /(?:50%|(?:\d+(?:\.\d+)?px))/.test(element.borderRadius)
+    && (element.borderRadius.includes("50%") || parsePixels(element.borderRadius) >= Math.min(width, height) / 2 - 1);
 }
 
 function parseCssColor(value: string | null | undefined): DesignColor | null {

@@ -12,6 +12,8 @@ A Next.js application that captures a website page and prepares structured data 
 
 The plugin creates nodes inside Figma; the web app does not generate a `.fig` file. Grid layout, CSS backgrounds, complex effects, and some image/font formats are represented with warnings or simplified nodes.
 
+For a direct handoff, choose **Open in Figma** after capture, launch the companion plugin in a Figma Design document, paste the one-time transfer link, and choose **Create Editable Design**. The transfer link expires after 30 minutes. In Figma, use **File → Save local copy** to download a genuine `.fig` document. The ZIP download remains available for later imports.
+
 ## Run locally
 
 From the repository root:

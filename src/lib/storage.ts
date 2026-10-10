@@ -227,6 +227,20 @@ export type BatchManifest = {
   completedAt?: string;
 };
 
+export type FigmaImportTicket = {
+  captureIds: string[];
+  expiresAt: string;
+};
+
+export async function saveFigmaImportTicket(token: string, value: FigmaImportTicket): Promise<void> {
+  await writeStoredFile(`figma/tickets/${token}.json`, JSON.stringify(value), "application/json");
+}
+
+export async function readFigmaImportTicket(token: string): Promise<FigmaImportTicket | null> {
+  const data = await readStoredFile(`figma/tickets/${token}.json`);
+  return data ? JSON.parse(data.toString("utf8")) as FigmaImportTicket : null;
+}
+
 export async function readBatchManifest(batchId: string): Promise<BatchManifest | null> {
   const data = await readStoredFile(`batches/${batchId}/batch.json`);
   return data ? JSON.parse(data.toString("utf8")) as BatchManifest : null;

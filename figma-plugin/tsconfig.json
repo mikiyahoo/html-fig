@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "noEmitOnError": true,
     "outDir": "./dist",
-    "rootDir": "."
+    "rootDir": ".."
   },
-  "include": ["code.ts"]
+  "include": ["code.ts", "../shared/design-schema.ts"]
 }
