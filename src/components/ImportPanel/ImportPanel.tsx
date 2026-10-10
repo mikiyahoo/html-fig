@@ -4,17 +4,20 @@ import { useState } from "react";
 import type { CaptureInput, Viewport } from "@/lib/url-validator";
 import { validateUrl, VIEWPORT_LABELS } from "@/lib/url-validator";
 import { Loader2, AlertCircle } from "lucide-react";
+import { useEffect } from "react";
 
 interface ImportPanelProps {
   onImport: (input: Omit<CaptureInput, "url"> & { urls: string[]; viewports: Viewport[] }) => void;
   disabled: boolean;
   error?: string;
   progress?: string;
+  initialUrl?: string;
+  initialViewport?: Viewport;
 }
 
-export default function ImportPanel({ onImport, disabled, error, progress }: ImportPanelProps) {
-  const [url, setUrl] = useState("");
-  const [viewport, setViewport] = useState<Viewport>("desktop");
+export default function ImportPanel({ onImport, disabled, error, progress, initialUrl = "", initialViewport = "desktop" }: ImportPanelProps) {
+  const [url, setUrl] = useState(initialUrl);
+  const [viewport, setViewport] = useState<Viewport>(initialViewport);
   const [responsiveLayouts, setResponsiveLayouts] = useState(false);
   const [fullPageScreenshot, setFullPageScreenshot] = useState(false);
   const [captureAssets, setCaptureAssets] = useState(true);
@@ -23,6 +26,13 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
   const [discoveredPages, setDiscoveredPages] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
+
+  useEffect(() => {
+    setUrl(initialUrl);
+    setViewport(initialViewport);
+    setDiscoveredPages([]);
+    setSelectedPages([]);
+  }, [initialUrl, initialViewport]);
 
   const handleDiscover = async () => {
     setValidationError(null);

@@ -5,6 +5,7 @@ import Dashboard from "@/components/Dashboard/Dashboard";
 import ImportPanel from "@/components/ImportPanel/ImportPanel";
 import CaptureWorkspace from "@/components/CaptureWorkspace/CaptureWorkspace";
 import type { CaptureResult, CaptureStatus } from "@/lib/types";
+import type { Viewport } from "@/lib/url-validator";
 
 type CaptureOptions = {
   viewport: "desktop" | "tablet" | "mobile";
@@ -22,6 +23,8 @@ export default function Home() {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [initialUrl, setInitialUrl] = useState("");
+  const [initialViewport, setInitialViewport] = useState<Viewport>("desktop");
 
   useEffect(() => {
     fetch("/api/captures")
@@ -186,14 +189,18 @@ export default function Home() {
       )}
       {view === "dashboard" && (
         <Dashboard
-          onNavigateToCapture={() => setView("import")}
+          onStartCapture={(url, viewport) => {
+            setInitialUrl(url);
+            setInitialViewport(viewport);
+            setView("import");
+          }}
           onViewCapture={handleViewCapture}
           onDeleteCapture={handleDeleteCapture}
           recentCaptures={recentCaptures}
         />
       )}
       {view === "import" && (
-        <ImportPanel onImport={handleImport} disabled={isLoading} error={error} progress={isLoading ? status?.progress : undefined} />
+        <ImportPanel onImport={handleImport} disabled={isLoading} error={error} progress={isLoading ? status?.progress : undefined} initialUrl={initialUrl} initialViewport={initialViewport} />
       )}
       {view === "capture" && (
         <CaptureWorkspace
