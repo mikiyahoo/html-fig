@@ -1,7 +1,8 @@
 import { chromium, type Page } from "playwright";
 import { v4 as uuidv4 } from "uuid";
 import type { AssetManifest, CaptureResult, CaptureSettings, ElementInfo } from "./types";
-import { validatePublicNetworkUrl, validateUrl, VIEWPORT_CONFIGS, type Viewport } from "./url-validator";
+import { validateUrl, VIEWPORT_CONFIGS, type Viewport } from "./url-validator";
+import { validatePublicNetworkUrl } from "./server-url-validator";
 import { saveCaptureToStorage } from "./storage";
 
 export const CAPTURE_SCHEMA_VERSION = "1.0.0";

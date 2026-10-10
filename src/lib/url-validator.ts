@@ -1,9 +1,7 @@
 import { z } from "zod";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
 
 // Check if a hostname string is a private/reserved IP address
-function isPrivateIpString(hostname: string): boolean {
+export function isPrivateIpAddress(hostname: string): boolean {
   // IPv4 private ranges
   const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
@@ -23,11 +21,11 @@ function isPrivateIpString(hostname: string): boolean {
   if (ipv6 === "::1" || ipv6 === "::" || /^(fc|fd|fe[89ab]|ff)/.test(ipv6) || ipv6.startsWith("2001:db8:")) return true;
   if (ipv6.startsWith("::ffff:")) {
     const mapped = ipv6.slice(7);
-    if (mapped.includes(".")) return isPrivateIpString(mapped);
+    if (mapped.includes(".")) return isPrivateIpAddress(mapped);
     const parts = mapped.split(":");
     if (parts.length === 2 && parts.every((part) => /^[0-9a-f]{1,4}$/.test(part))) {
       const first = parseInt(parts[0], 16); const second = parseInt(parts[1], 16);
-      return isPrivateIpString(`${first >> 8}.${first & 255}.${second >> 8}.${second & 255}`);
+      return isPrivateIpAddress(`${first >> 8}.${first & 255}.${second >> 8}.${second & 255}`);
     }
     return true;
   }
@@ -107,7 +105,7 @@ export function validateUrl(url: string): { valid: boolean; parsedUrl?: URL; err
       return { valid: false, error: "This destination is blocked for security reasons" };
     }
 
-    if (isPrivateIpString(parsed.hostname)) {
+    if (isPrivateIpAddress(parsed.hostname)) {
       return { valid: false, error: "Private IP addresses are not allowed" };
     }
 
@@ -130,7 +128,7 @@ export function isCloudMetadataEndpoint(hostname: string): boolean {
 
 export function isPrivateNetworkDestination(url: URL): boolean {
   return (
-    isPrivateIpString(url.hostname) ||
+    isPrivateIpAddress(url.hostname) ||
     url.hostname === "localhost" ||
     url.hostname === "127.0.0.1" ||
     url.hostname === "::1" ||
@@ -146,18 +144,5 @@ export function sanitizeUrl(url: string): string {
     return parsed.href;
   } catch {
     return url;
-  }
-}
-
-/** Resolve hostnames before capture and fail closed if any answer is non-public. */
-export async function validatePublicNetworkUrl(url: URL): Promise<boolean> {
-  if (isPrivateNetworkDestination(url)) return false;
-  const hostname = url.hostname.replace(/^\[|\]$/g, "");
-  if (isIP(hostname)) return !isPrivateIpString(hostname);
-  try {
-    const addresses = await lookup(hostname, { all: true, verbatim: true });
-    return addresses.length > 0 && addresses.every(({ address }) => !isPrivateIpString(address));
-  } catch {
-    return false;
   }
 }
