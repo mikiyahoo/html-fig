@@ -50,8 +50,13 @@ export async function startCapture(url: string, settings: Partial<CaptureSetting
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
     const consoleErrors: string[] = [];
-    page.on("pageerror", (error) => { if (consoleErrors.length < 20) consoleErrors.push(error.message); });
-    await page.goto(parsedUrl.href, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT });
+    page.on("pageerror", (error) => addConsoleError(consoleErrors, error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") addConsoleError(consoleErrors, message.text());
+    });
+    if (await navigateWithRetry(page, parsedUrl.href)) {
+      capture.warnings.push("The initial navigation failed transiently and succeeded after one retry.");
+    }
     await page.waitForTimeout(750);
     capture.finalUrl = page.url();
     capture.pageMetadata = await page.evaluate((meta) => ({
@@ -116,7 +121,7 @@ export async function discoverInternalPages(url: string, limit = 10): Promise<st
     await installRequestPolicy(context);
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
-    await page.goto(parsedUrl.href, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT });
+    await navigateWithRetry(page, parsedUrl.href);
     await page.waitForTimeout(500);
     const links = await page.locator("a[href]").evaluateAll((anchors) => anchors.map((anchor) => (anchor as HTMLAnchorElement).href));
     return normalizeInternalPageLinks(page.url(), links, limit);
@@ -141,6 +146,32 @@ async function launchBrowser(): Promise<Browser> {
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
   });
+}
+
+async function navigateWithRetry(page: Page, url: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT });
+      return attempt > 0;
+    } catch (error) {
+      if (attempt === 0 && isTransientNavigationError(error)) {
+        await page.waitForTimeout(500);
+        continue;
+      }
+      throw error;
+    }
+  }
+  return false;
+}
+
+function isTransientNavigationError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Timeout \d+ms exceeded|ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_NETWORK_CHANGED|ERR_CONNECTION_TIMED_OUT/i.test(message);
+}
+
+function addConsoleError(errors: string[], message: string): void {
+  const normalized = message.trim().slice(0, 500);
+  if (normalized && errors.length < 20 && !errors.includes(normalized)) errors.push(normalized);
 }
 
 async function installRequestPolicy(context: BrowserContext): Promise<void> {

@@ -77,6 +77,8 @@ export default function CaptureWorkspace({ status, result, results, batchExportU
 
   if (result) {
     const r = result!;
+    const browserErrors = results.flatMap((capture) => capture.errors.map((message) => `${capture.captureSettings.viewport}: ${message}`));
+    const captureWarnings = results.flatMap((capture) => capture.warnings);
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -152,12 +154,22 @@ export default function CaptureWorkspace({ status, result, results, batchExportU
               </div>
             ) : null}
 
-            {r.warnings.length > 0 && (
+            {browserErrors.length > 0 && (
+              <div className="error-card">
+                <p className="mb-1 font-medium">Browser console diagnostics ({browserErrors.length}):</p>
+                <ul className="list-disc list-inside space-y-1">
+                  {browserErrors.slice(0, 8).map((message, index) => <li key={index}>{message}</li>)}
+                  {browserErrors.length > 8 && <li>... and {browserErrors.length - 8} more</li>}
+                </ul>
+              </div>
+            )}
+
+            {captureWarnings.length > 0 && (
               <div className="warning-card">
-                <p className="font-medium mb-1">Warnings ({r.warnings.length}):</p>
+                <p className="font-medium mb-1">Warnings ({captureWarnings.length}):</p>
                 <ul className="list-disc list-inside space-y-0.5">
-                  {r.warnings.slice(0, 5).map((w, i) => (<li key={i}>{w}</li>))}
-                  {r.warnings.length > 5 && <li>... and {r.warnings.length - 5} more</li>}
+                  {captureWarnings.slice(0, 5).map((w, i) => (<li key={i}>{w}</li>))}
+                  {captureWarnings.length > 5 && <li>... and {captureWarnings.length - 5} more</li>}
                 </ul>
               </div>
             )}
