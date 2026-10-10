@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { CaptureStatus } from "@/lib/types";
 import type { Viewport } from "@/lib/url-validator";
 import { VIEWPORT_LABELS } from "@/lib/url-validator";
-import { Check, Clock3, ExternalLink, Folder, Globe2, Layers3, Loader2, Link2, Monitor, Smartphone, Tablet, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, Check, Clock3, ExternalLink, Folder, Globe2, Layers3, Loader2, Link2, Monitor, Smartphone, Tablet, Trash2, Upload, X } from "lucide-react";
 
 interface DashboardProps {
   onStartCapture: (url: string, viewport: Viewport) => void;
