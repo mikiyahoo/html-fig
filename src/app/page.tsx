@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Dashboard from "@/components/Dashboard/Dashboard";
-import ImportPanel from "@/components/ImportPanel/ImportPanel";
 import CaptureWorkspace from "@/components/CaptureWorkspace/CaptureWorkspace";
 import type { CaptureResult, CaptureStatus } from "@/lib/types";
 import type { Viewport } from "@/lib/url-validator";
@@ -17,7 +16,7 @@ type CaptureOptions = {
 };
 
 export default function Home() {
-  const [view, setView] = useState<"dashboard" | "import" | "capture">("dashboard");
+  const [view, setView] = useState<"dashboard" | "capture">("dashboard");
   const [status, setStatus] = useState<CaptureStatus | null>(null);
   const [recentCaptures, setRecentCaptures] = useState<CaptureStatus[]>([]);
   const [captures, setCaptures] = useState<CaptureResult[]>([]);
@@ -25,8 +24,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showCaptureDrawer, setShowCaptureDrawer] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  const [initialUrl, setInitialUrl] = useState("");
-  const [initialViewport, setInitialViewport] = useState<Viewport>("desktop");
 
   useEffect(() => {
     fetch("/api/captures")
@@ -194,18 +191,13 @@ export default function Home() {
       )}
       {view === "dashboard" && (
         <Dashboard
-          onStartCapture={(url, viewport) => {
-            setInitialUrl(url);
-            setInitialViewport(viewport);
-            setView("import");
-          }}
+          onImport={handleImport}
           onViewCapture={handleViewCapture}
           onDeleteCapture={handleDeleteCapture}
           recentCaptures={recentCaptures}
+          disabled={isLoading}
+          error={error}
         />
-      )}
-      {view === "import" && (
-        <ImportPanel onImport={handleImport} disabled={isLoading} error={error} progress={isLoading ? status?.progress : undefined} initialUrl={initialUrl} initialViewport={initialViewport} />
       )}
       {view === "capture" && (
         <CaptureWorkspace
@@ -217,7 +209,7 @@ export default function Home() {
           onResultChange={(capture) => setCaptures(capture ? [capture] : [])}
         />
       )}
-      {showCaptureDrawer && view === "import" && (
+      {showCaptureDrawer && view === "dashboard" && (
         <CaptureProgressDrawer
           status={status}
           onClose={() => setShowCaptureDrawer(false)}

@@ -2,26 +2,78 @@
 
 import { useState } from "react";
 import type { CaptureStatus } from "@/lib/types";
-import type { Viewport } from "@/lib/url-validator";
-import { VIEWPORT_LABELS } from "@/lib/url-validator";
-import { ArrowRight, Check, Clock3, ExternalLink, Folder, Globe2, Layers3, Loader2, Link2, Monitor, Smartphone, Tablet, Trash2, Upload, X } from "lucide-react";
+import type { CaptureInput, Viewport } from "@/lib/url-validator";
+import { validateUrl, VIEWPORT_LABELS } from "@/lib/url-validator";
+import { AlertCircle, ArrowRight, Check, Clock3, ExternalLink, Folder, Globe2, Layers3, Loader2, Link2, Monitor, Search, Smartphone, Tablet, Trash2, Upload, X } from "lucide-react";
 
 interface DashboardProps {
-  onStartCapture: (url: string, viewport: Viewport) => void;
+  onImport: (input: Omit<CaptureInput, "url"> & { urls: string[]; viewports: Viewport[] }) => void;
   onViewCapture: (captureId: string, batchId?: string) => void;
   onDeleteCapture: (capture: CaptureStatus) => Promise<void>;
   recentCaptures: CaptureStatus[];
+  disabled: boolean;
+  error?: string;
 }
 
 const viewportIcon = { desktop: Monitor, tablet: Tablet, mobile: Smartphone };
 
-export default function Dashboard({ onStartCapture, onViewCapture, onDeleteCapture, recentCaptures }: DashboardProps) {
+export default function Dashboard({ onImport, onViewCapture, onDeleteCapture, recentCaptures, disabled, error }: DashboardProps) {
   const [url, setUrl] = useState("");
   const [viewport, setViewport] = useState<Viewport>("desktop");
+  const [responsiveLayouts, setResponsiveLayouts] = useState(false);
+  const [fullPageScreenshot, setFullPageScreenshot] = useState(false);
+  const [captureAssets, setCaptureAssets] = useState(true);
+  const [discoveredPages, setDiscoveredPages] = useState<string[]>([]);
+  const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CaptureStatus | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const ViewportIcon = viewportIcon[viewport];
+  const responsiveLimitReached = responsiveLayouts && selectedPages.length > 3;
+
+  const discoverPages = async () => {
+    setDiscoveryError(null);
+    const validation = validateUrl(url);
+    if (!validation.valid || !validation.parsedUrl) {
+      setDiscoveryError(validation.error || "Enter a valid website URL.");
+      return;
+    }
+    setIsDiscovering(true);
+    try {
+      const response = await fetch("/api/captures/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: validation.parsedUrl.href }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.details || payload.error || "Could not find website pages.");
+      const pages = payload.pages as string[];
+      setUrl(validation.parsedUrl.href);
+      setDiscoveredPages(pages);
+      setSelectedPages(pages);
+      if (!pages.length) setDiscoveryError("No pages were found on this website.");
+    } catch (scanError) {
+      setDiscoveredPages([]);
+      setSelectedPages([]);
+      setDiscoveryError(scanError instanceof Error ? scanError.message : "Could not find website pages.");
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+  const submitImport = () => {
+    if (!selectedPages.length || responsiveLimitReached) return;
+    onImport({
+      urls: selectedPages,
+      viewport,
+      viewports: responsiveLayouts ? ["desktop", "tablet", "mobile"] : [viewport],
+      fullPageScreenshot,
+      captureAssets,
+      captureSchemaVersion: 1,
+    });
+  };
 
   const confirmDelete = async () => {
     if (!pendingDelete || deleting) return;
@@ -70,24 +122,36 @@ export default function Dashboard({ onStartCapture, onViewCapture, onDeleteCaptu
                 <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Web to Figma</h1>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">Turn a website into editable design layers. Capture the page, convert its structure, then open it in Figma.</p>
 
-                <form className="mt-6 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-md sm:flex-row" onSubmit={(event) => { event.preventDefault(); onStartCapture(url, viewport); }}>
+                <form className="mt-6 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-md sm:flex-row" onSubmit={(event) => { event.preventDefault(); void discoverPages(); }}>
                   <label className="flex min-w-0 flex-1 items-center gap-3 px-3">
                     <Link2 className="h-5 w-5 shrink-0 text-slate-400" />
-                    <input id="website-url" type="url" required value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://example.com" className="h-11 w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400" />
+                    <input id="website-url" type="url" required disabled={disabled || isDiscovering} value={url} onChange={(event) => { setUrl(event.target.value); setDiscoveredPages([]); setSelectedPages([]); setDiscoveryError(null); }} placeholder="https://example.com" className="h-11 w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-slate-400" />
                   </label>
                   <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700 sm:border-0 sm:border-l sm:rounded-none">
                     <ViewportIcon className="h-4 w-4 text-slate-500" />
                     <span className="sr-only">Viewport size</span>
-                    <select aria-label="Viewport size" value={viewport} onChange={(event) => setViewport(event.target.value as Viewport)} className="max-w-40 bg-transparent outline-none">
+                    <select aria-label="Viewport size" value={viewport} disabled={disabled || responsiveLayouts} onChange={(event) => setViewport(event.target.value as Viewport)} className="max-w-40 bg-transparent outline-none disabled:opacity-50">
                       {(Object.keys(VIEWPORT_LABELS) as Viewport[]).map((item) => <option key={item} value={item}>{VIEWPORT_LABELS[item]}</option>)}
                     </select>
                   </label>
-                  <button type="submit" className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-ring"><Upload className="h-4 w-4" />Import website</button>
+                  <button type="submit" disabled={disabled || isDiscovering} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-ring disabled:cursor-wait disabled:opacity-60">{isDiscovering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}{isDiscovering ? "Finding pages…" : "Find pages on this website"}</button>
                 </form>
 
-                <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-xs font-medium text-slate-600">
-                  {["Capture images & assets", "Detect fonts & colors", "Editable Figma layers"].map((feature) => <span key={feature} className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-blue-600" />{feature}</span>)}
+                <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-medium text-slate-600">
+                  <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={responsiveLayouts} disabled={disabled} onChange={(event) => setResponsiveLayouts(event.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />Capture responsive layouts</label>
+                  <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={fullPageScreenshot} disabled={disabled} onChange={(event) => setFullPageScreenshot(event.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />Full Page Screenshot</label>
+                  <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={captureAssets} disabled={disabled} onChange={(event) => setCaptureAssets(event.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />Capture Assets</label>
                 </div>
+                {discoveryError && <p role="alert" className="mt-3 flex items-start gap-2 text-sm text-red-600"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{discoveryError}</p>}
+                {error && <p role="alert" className="mt-3 flex items-start gap-2 text-sm text-red-600"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</p>}
+                {responsiveLimitReached && <p role="alert" className="mt-3 text-sm text-amber-700">Responsive imports support up to 3 selected pages. Deselect {selectedPages.length - 3} page(s) to continue.</p>}
+                {discoveredPages.length > 0 && <div className="mt-5 rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold text-slate-900">Pages found ({selectedPages.length} selected of {discoveredPages.length})</h2><button type="button" onClick={() => setSelectedPages(selectedPages.length === discoveredPages.length ? [] : discoveredPages)} className="text-xs font-semibold text-blue-700 hover:text-blue-900">{selectedPages.length === discoveredPages.length ? "Deselect all" : "Select all"}</button></div>
+                  <div className="max-h-48 space-y-2 overflow-y-auto">
+                    {discoveredPages.map((page) => <label key={page} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"><input type="checkbox" checked={selectedPages.includes(page)} disabled={disabled} onChange={(event) => setSelectedPages((current) => event.target.checked ? [...current, page] : current.filter((item) => item !== page))} className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /><span className="break-all">{page}</span></label>)}
+                  </div>
+                  <button type="button" onClick={submitImport} disabled={disabled || !selectedPages.length || responsiveLimitReached} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"><Search className="h-4 w-4" />Import {selectedPages.length} selected page{selectedPages.length === 1 ? "" : "s"}</button>
+                </div>}
               </div>
 
               <div aria-hidden="true" className="relative mx-auto hidden h-56 w-full max-w-lg items-center justify-center xl:flex">
