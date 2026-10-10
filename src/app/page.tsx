@@ -55,8 +55,9 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.details || payload.error || "Capture failed");
+      const payload = await readBatchResponse(response, (progress) => {
+        setStatus((current) => current ? { ...current, progress } : current);
+      });
 
       const imported = payload.captures as CaptureResult[];
       if (!imported.length) throw new Error("No selected pages were captured.");
@@ -187,4 +188,56 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+type BatchResponse = {
+  batchId: string;
+  captures: CaptureResult[];
+  failures?: Array<{ url: string; error: string }>;
+  exportUrl?: string;
+};
+
+async function readBatchResponse(response: Response, onProgress: (progress: string) => void): Promise<BatchResponse> {
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.details || payload.error || "Capture failed");
+  }
+
+  if (!response.headers.get("content-type")?.includes("application/x-ndjson")) {
+    return response.json() as Promise<BatchResponse>;
+  }
+
+  if (!response.body) throw new Error("The capture stream was empty. Please try again.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let complete: BatchResponse | undefined;
+  const consumeLine = (line: string) => {
+    if (!line.trim()) return;
+    const event = JSON.parse(line) as Record<string, unknown>;
+    if (event.type === "progress" && typeof event.progress === "string") onProgress(event.progress);
+    if (event.type === "error") {
+      const failures = Array.isArray(event.failures)
+        ? event.failures.map((failure) => `${failure.url}: ${failure.error}`).join("\n")
+        : "";
+      throw new Error([event.details || event.error || "Capture failed", failures].filter(Boolean).join("\n"));
+    }
+    if (event.type === "complete") complete = event as unknown as BatchResponse;
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      pending += decoder.decode(value, { stream: !done });
+      const lines = pending.split("\n");
+      pending = lines.pop() || "";
+      for (const line of lines) consumeLine(line);
+      if (done) break;
+    }
+    if (pending.trim()) consumeLine(pending);
+  } finally {
+    reader.releaseLock();
+  }
+  if (!complete) throw new Error("The capture ended before the package was saved. Please try again.");
+  return complete;
 }

@@ -47,42 +47,76 @@ export async function POST(request: NextRequest) {
       validatedUrls.push(validation.parsedUrl.href);
     }
 
-    const captures = [];
-    const failures: Array<{ url: string; error: string }> = [];
-    for (const url of validatedUrls) {
-      for (const viewport of viewports) {
-        try {
-          captures.push(await startCapture(url, {
-            viewport,
-            fullPageScreenshot: parsed.data.fullPageScreenshot ?? false,
-            captureAssets: parsed.data.captureAssets ?? true,
-            captureSchemaVersion: parsed.data.captureSchemaVersion || 1,
-          }));
-        } catch (error) {
-          failures.push({ url: `${url} (${viewport})`, error: error instanceof Error ? error.message : "Capture failed" });
-        }
-      }
-    }
+    const layoutCount = validatedUrls.length * viewports.length;
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const send = (event: Record<string, unknown>) => {
+          try { controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`)); }
+          catch { /* The client may leave while a capture is running. */ }
+        };
 
-    if (!captures.length) {
-      return NextResponse.json({ error: "None of the selected pages could be captured.", failures }, { status: 502 });
-    }
+        void (async () => {
+          const captures = [];
+          const failures: Array<{ url: string; error: string }> = [];
+          let current = 0;
+          try {
+            for (const url of validatedUrls) {
+              for (const viewport of viewports) {
+                current += 1;
+                send({ type: "progress", progress: `Rendering layout ${current} of ${layoutCount} · ${viewport} · ${url}` });
+                try {
+                  captures.push(await startCapture(url, {
+                    viewport,
+                    fullPageScreenshot: parsed.data.fullPageScreenshot ?? false,
+                    captureAssets: parsed.data.captureAssets ?? true,
+                    captureSchemaVersion: parsed.data.captureSchemaVersion || 1,
+                  }));
+                } catch (error) {
+                  failures.push({ url: `${url} (${viewport})`, error: error instanceof Error ? error.message : "Capture failed" });
+                }
+                send({ type: "progress", progress: `Finished layout ${current} of ${layoutCount}` });
+              }
+            }
 
-    const batchId = generateCaptureId();
-    await saveBatchManifest(batchId, {
-      id: batchId,
-      createdAt: new Date().toISOString(),
-      pageCaptureIds: captures.map((capture) => capture.id),
-      failures,
+            if (!captures.length) {
+              send({ type: "error", error: "None of the selected page layouts could be captured.", code: "CAPTURE_FAILED", failures });
+              return;
+            }
+
+            send({ type: "progress", progress: "Saving capture package…" });
+            const batchId = generateCaptureId();
+            await saveBatchManifest(batchId, {
+              id: batchId,
+              createdAt: new Date().toISOString(),
+              pageCaptureIds: captures.map((capture) => capture.id),
+              failures,
+            });
+
+            const publicCaptures = captures.map(({ assetFiles: _assetFiles, ...capture }) => capture);
+            send({
+              type: "complete",
+              batchId,
+              captures: publicCaptures,
+              failures,
+              exportUrl: `/api/captures/batch/${batchId}/export`,
+            });
+          } catch (error) {
+            send({ type: "error", error: "Could not finish the capture package.", code: "BATCH_CAPTURE_ERROR", details: error instanceof Error ? error.message.slice(0, 300) : "Unexpected capture error." });
+          } finally {
+            try { controller.close(); } catch { /* The client already closed the stream. */ }
+          }
+        })();
+      },
     });
 
-    const publicCaptures = captures.map(({ assetFiles: _assetFiles, ...capture }) => capture);
-    return NextResponse.json({
-      batchId,
-      captures: publicCaptures,
-      failures,
-      exportUrl: `/api/captures/batch/${batchId}/export`,
-    }, { status: 201 });
+    return new NextResponse(stream, {
+      headers: {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
   } catch (error) {
     console.error("Batch capture error:", error);
     return NextResponse.json({
