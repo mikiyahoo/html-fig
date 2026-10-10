@@ -3,10 +3,10 @@
 import { useState } from "react";
 import type { CaptureInput, Viewport } from "@/lib/url-validator";
 import { validateUrl, VIEWPORT_LABELS } from "@/lib/url-validator";
-import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 interface ImportPanelProps {
-  onImport: (input: Omit<CaptureInput, "url"> & { url: string }) => void;
+  onImport: (input: Omit<CaptureInput, "url"> & { urls: string[] }) => void;
   disabled: boolean;
   error?: string;
   progress?: string;
@@ -18,6 +18,41 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
   const [fullPageScreenshot, setFullPageScreenshot] = useState(false);
   const [captureAssets, setCaptureAssets] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  const [discoveredPages, setDiscoveredPages] = useState<string[]>([]);
+  const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+
+  const handleDiscover = async () => {
+    setValidationError(null);
+    setDiscoveryError(null);
+    const validation = validateUrl(url);
+    if (!validation.valid || !validation.parsedUrl) {
+      setValidationError(validation.error || "Invalid URL");
+      return;
+    }
+
+    setIsDiscovering(true);
+    try {
+      const response = await fetch("/api/captures/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: validation.parsedUrl.href }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.details || payload.error || "Could not discover pages");
+      const pages = payload.pages as string[];
+      setDiscoveredPages(pages);
+      setSelectedPages(pages);
+      setUrl(validation.parsedUrl.href);
+    } catch (err) {
+      setDiscoveryError((err as Error).message);
+      setDiscoveredPages([]);
+      setSelectedPages([]);
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,9 +63,13 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
       setValidationError(validation.error || "Invalid URL");
       return;
     }
+    if (!selectedPages.length) {
+      setDiscoveryError("Discover pages and select at least one page to import.");
+      return;
+    }
 
     onImport({
-      url: validation.parsedUrl!.href,
+      urls: selectedPages,
       viewport,
       fullPageScreenshot,
       captureAssets,
@@ -53,7 +92,12 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
             id="url"
             type="text"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setDiscoveredPages([]);
+              setSelectedPages([]);
+              setDiscoveryError(null);
+            }}
             placeholder="https://example.com"
             className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus-ring"
             disabled={disabled}
@@ -70,6 +114,40 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
               <AlertCircle className="w-4 h-4" />
               {error}
             </p>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={handleDiscover}
+            disabled={disabled || isDiscovering}
+            className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            {isDiscovering ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {isDiscovering ? "Finding pages…" : "Find pages on this website"}
+          </button>
+          {discoveryError && <p className="text-sm text-red-600">{discoveryError}</p>}
+          {discoveredPages.length > 0 && (
+            <fieldset className="rounded-lg border border-gray-200 p-4">
+              <legend className="px-1 text-sm font-medium text-gray-700">Choose pages ({selectedPages.length} selected)</legend>
+              <div className="max-h-48 space-y-2 overflow-y-auto">
+                {discoveredPages.map((page) => (
+                  <label key={page} className="flex items-start gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedPages.includes(page)}
+                      onChange={(event) => setSelectedPages((current) => event.target.checked
+                        ? [...current, page]
+                        : current.filter((selected) => selected !== page))}
+                      disabled={disabled}
+                      className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="break-all">{page}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
           )}
         </div>
 
@@ -130,7 +208,7 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
         <div className="flex gap-3 pt-4">
           <button
             type="submit"
-            disabled={disabled}
+            disabled={disabled || selectedPages.length === 0}
             className="flex-1 inline-flex justify-center items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {disabled ? (
@@ -143,7 +221,7 @@ export default function ImportPanel({ onImport, disabled, error, progress }: Imp
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                Import Website
+                Import {selectedPages.length || "Selected"} Page{selectedPages.length === 1 ? "" : "s"}
               </>
             )}
           </button>

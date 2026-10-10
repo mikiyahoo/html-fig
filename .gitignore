@@ -4,6 +4,7 @@
 **/out/
 **/coverage/
 **/*.tsbuildinfo
+/figma-plugin/dist/
 
 # Local capture data and diagnostics
 **/temp/captures/

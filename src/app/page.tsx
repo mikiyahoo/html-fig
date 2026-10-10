@@ -1,34 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Dashboard from "@/components/Dashboard/Dashboard";
 import ImportPanel from "@/components/ImportPanel/ImportPanel";
 import CaptureWorkspace from "@/components/CaptureWorkspace/CaptureWorkspace";
-import type { CaptureStatus, CaptureResult, CaptureState } from "@/lib/types";
+import type { CaptureResult, CaptureStatus } from "@/lib/types";
+
+type CaptureOptions = {
+  viewport: "desktop" | "tablet" | "mobile";
+  fullPageScreenshot: boolean;
+  captureAssets: boolean;
+  captureSchemaVersion: number;
+};
 
 export default function Home() {
   const [view, setView] = useState<"dashboard" | "import" | "capture">("dashboard");
   const [status, setStatus] = useState<CaptureStatus | null>(null);
-  const [result, setResult] = useState<CaptureResult | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [recentCaptures, setRecentCaptures] = useState<CaptureStatus[]>([]);
+  const [captures, setCaptures] = useState<CaptureResult[]>([]);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
-  const handleImport = async (input: {
-    url: string;
-    viewport: "desktop" | "tablet" | "mobile";
-    fullPageScreenshot: boolean;
-    captureAssets: boolean;
-    captureSchemaVersion: number;
-  }) => {
-    setView("capture");
-    setIsCapturing(true);
-    setError(undefined);
+  useEffect(() => {
+    fetch("/api/captures")
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Could not load recent captures")))
+      .then((payload) => setRecentCaptures(payload.captures as CaptureStatus[]))
+      .catch(() => setRecentCaptures([]));
+  }, []);
 
+  const handleImport = async (input: CaptureOptions & { urls: string[] }) => {
+    setView("capture");
+    setIsLoading(true);
+    setError(undefined);
+    setCaptures([]);
+    setBatchId(null);
     setStatus({
-      id: "temp",
-      originalUrl: input.url,
+      id: "pending",
+      originalUrl: input.urls[0] || "",
       state: "running",
-      progress: "Starting capture...",
+      progress: `Capturing ${input.urls.length} selected page(s)…`,
       errors: [],
       warnings: [],
       screenshotUrl: null,
@@ -38,36 +49,47 @@ export default function Home() {
     });
 
     try {
-      const response = await fetch("/api/captures", {
+      const response = await fetch("/api/captures/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.details || payload.error || "Capture failed");
-      const captureResult = payload as CaptureResult;
 
-      setResult(captureResult);
+      const imported = payload.captures as CaptureResult[];
+      if (!imported.length) throw new Error("No selected pages were captured.");
+      setCaptures(imported);
+      setBatchId(payload.batchId as string);
+      const first = imported[0];
+      const failures = (payload.failures || []) as Array<{ url: string; error: string }>;
       setStatus({
-        id: captureResult.id,
-        originalUrl: captureResult.originalUrl,
-        state: "completed" as CaptureState,
-        progress: "Complete",
-        errors: captureResult.errors,
-        warnings: captureResult.warnings,
-        screenshotUrl: `/api/captures/${captureResult.id}/screenshot`,
+        id: first.id,
+        batchId: payload.batchId,
+        originalUrl: first.originalUrl,
+        state: "completed",
+        progress: `Captured ${imported.length} page(s)`,
+        errors: failures.map((failure) => `${failure.url}: ${failure.error}`),
+        warnings: imported.flatMap((capture) => capture.warnings),
+        screenshotUrl: `/api/captures/${first.id}/screenshot`,
         elapsedTime: 0,
-        startedAt: captureResult.captureTimestamp,
+        startedAt: first.captureTimestamp,
         completedAt: new Date().toISOString(),
       });
+      const recent: CaptureStatus = { id: first.id, batchId: payload.batchId as string, originalUrl: first.originalUrl, state: "completed", progress: `Captured ${imported.length} page(s)`, errors: failures.map((failure) => failure.error), warnings: imported.flatMap((capture) => capture.warnings), screenshotUrl: `/api/captures/${first.id}/screenshot`, elapsedTime: 0, startedAt: first.captureTimestamp, completedAt: new Date().toISOString() };
+      setRecentCaptures((current) => [
+        recent,
+        ...current.filter((capture) => capture.batchId !== payload.batchId && capture.id !== first.id),
+      ].slice(0, 20));
     } catch (err) {
-      setError((err as Error).message);
+      const message = (err as Error).message;
+      setError(message);
       setStatus({
-        id: "temp",
-        originalUrl: input.url,
+        id: "failed",
+        originalUrl: input.urls[0] || "",
         state: "failed",
         progress: "Failed",
-        errors: [(err as Error).message],
+        errors: [message],
         warnings: [],
         screenshotUrl: null,
         elapsedTime: 0,
@@ -75,32 +97,91 @@ export default function Home() {
         completedAt: null,
       });
     } finally {
-      setIsCapturing(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleViewCapture = async (id: string, savedBatchId?: string) => {
+    if (status?.id === id && (!savedBatchId || batchId === savedBatchId) && captures.length) {
+      setView("capture");
+      return;
+    }
+
+    setView("capture");
+    setIsLoading(true);
+    setError(undefined);
+    try {
+      const url = savedBatchId ? `/api/captures/batch/${savedBatchId}` : `/api/captures/${id}`;
+      const response = await fetch(url);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.details || payload.error || "Could not load capture");
+      const loaded = (savedBatchId ? payload.captures : [payload]) as CaptureResult[];
+      setCaptures(loaded);
+      setBatchId(savedBatchId || null);
+      const first = loaded[0];
+      if (!first) throw new Error("This capture has no saved page data.");
+      setStatus({
+        id: first.id,
+        batchId: savedBatchId,
+        originalUrl: first.originalUrl,
+        state: "completed",
+        progress: `Captured ${loaded.length} page(s)`,
+        errors: payload.failures?.map((failure: { url: string; error: string }) => `${failure.url}: ${failure.error}`) || [],
+        warnings: loaded.flatMap((capture) => capture.warnings),
+        screenshotUrl: `/api/captures/${first.id}/screenshot`,
+        elapsedTime: 0,
+        startedAt: first.captureTimestamp,
+        completedAt: first.captureTimestamp,
+      });
+    } catch (err) {
+      const message = (err as Error).message;
+      setError(message);
+      setCaptures([]);
+      setStatus({
+        id,
+        batchId: savedBatchId,
+        originalUrl: "",
+        state: "failed",
+        progress: "Failed to load capture",
+        errors: [message],
+        warnings: [],
+        screenshotUrl: null,
+        elapsedTime: 0,
+        startedAt: null,
+        completedAt: null,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <main className="min-h-screen bg-white">
-      <Dashboard
-        onNavigateToCapture={() => setView("import")}
-        recentCaptures={status ? [status] : []}
-      />
-
-      {view === "import" && !isCapturing && !result && (
-        <ImportPanel
-          onImport={handleImport}
-          disabled={isCapturing}
-          error={error}
-          progress={isCapturing ? status?.progress : undefined}
+      {view !== "dashboard" && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <button type="button" onClick={() => setView("dashboard")} className="text-sm font-medium text-blue-600 hover:text-blue-800">
+            ← Projects
+          </button>
+        </div>
+      )}
+      {view === "dashboard" && (
+        <Dashboard
+          onNavigateToCapture={() => setView("import")}
+          onViewCapture={handleViewCapture}
+          recentCaptures={recentCaptures}
         />
       )}
-
+      {view === "import" && (
+        <ImportPanel onImport={handleImport} disabled={isLoading} error={error} progress={isLoading ? status?.progress : undefined} />
+      )}
       {view === "capture" && (
         <CaptureWorkspace
           status={status}
-          result={result}
+          result={captures[0] || null}
+          results={captures}
+          batchExportUrl={batchId ? `/api/captures/batch/${batchId}/export` : null}
           onStatusChange={setStatus}
-          onResultChange={setResult}
+          onResultChange={(capture) => setCaptures(capture ? [capture] : [])}
         />
       )}
     </main>

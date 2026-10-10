@@ -9,7 +9,8 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:figma-plugin": "tsc -p figma-plugin/tsconfig.json && node scripts/build-figma-plugin.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1",
@@ -22,6 +23,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@figma/plugin-typings": "^1.141.0",
     "@playwright/test": "^1.45.3",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",

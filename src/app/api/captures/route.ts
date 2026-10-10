@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateUrl } from "@/lib/url-validator";
 import { startCapture } from "@/lib/capture";
+import { listRecentCaptures } from "@/lib/storage";
+
+export async function GET() {
+  return NextResponse.json({ captures: listRecentCaptures() });
+}
 
 const captureBodySchema = z.object({
   url: z.string().url(),
@@ -43,8 +48,22 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error("Capture request error:", error);
+    if (error instanceof Error && /Executable doesn't exist|Please run npx playwright install/i.test(error.message)) {
+      return NextResponse.json(
+        {
+          error: "Chromium is not installed for Playwright.",
+          code: "BROWSER_NOT_INSTALLED",
+          details: "Run `npx playwright install chromium` in the project, then restart the app.",
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
-      { error: "Internal server error", code: "CAPTURE_ERROR" },
+      {
+        error: "Capture failed",
+        code: "CAPTURE_ERROR",
+        details: error instanceof Error ? error.message.slice(0, 300) : "An unexpected capture error occurred.",
+      },
       { status: 500 }
     );
   }

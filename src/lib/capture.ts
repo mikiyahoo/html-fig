@@ -1,9 +1,10 @@
-import { chromium, type Page } from "playwright";
+import { chromium, type BrowserContext, type Page } from "playwright";
 import { v4 as uuidv4 } from "uuid";
 import type { AssetManifest, CaptureResult, CaptureSettings, ElementInfo } from "./types";
 import { validateUrl, VIEWPORT_CONFIGS, type Viewport } from "./url-validator";
 import { validatePublicNetworkUrl } from "./server-url-validator";
 import { saveCaptureToStorage } from "./storage";
+import { normalizeInternalPageLinks } from "./page-discovery";
 
 export const CAPTURE_SCHEMA_VERSION = "1.0.0";
 const NAVIGATION_TIMEOUT = 30_000;
@@ -45,15 +46,7 @@ export async function startCapture(url: string, settings: Partial<CaptureSetting
   try {
     const viewport = getViewportConfig(captureSettings.viewport);
     const context = await browser.newContext({ viewport, locale: "en-US" });
-    // Every browser request, including redirects and subresources, is checked before Chromium follows it.
-    await context.route("**/*", async (route) => {
-      const target = new URL(route.request().url());
-      if (!validateUrl(target.href).valid || !(await validatePublicNetworkUrl(target))) {
-        await route.abort("blockedbyclient");
-        return;
-      }
-      await route.continue();
-    });
+    await installRequestPolicy(context);
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
     const consoleErrors: string[] = [];
@@ -110,7 +103,46 @@ export async function startCapture(url: string, settings: Partial<CaptureSetting
   }
 }
 
-async function extractElements(page: Page): Promise<ElementInfo[]> {
+export async function discoverInternalPages(url: string, limit = 10): Promise<string[]> {
+  const validation = validateUrl(url);
+  if (!validation.valid || !validation.parsedUrl) throw new Error(validation.error || "Invalid URL");
+  const parsedUrl = validation.parsedUrl;
+  if (!(await validatePublicNetworkUrl(parsedUrl))) throw new Error("This URL does not resolve to a public network address.");
+
+  const browser = await chromium.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+  let context: BrowserContext | undefined;
+  try {
+    context = await browser.newContext({ viewport: VIEWPORT_CONFIGS.desktop });
+    await installRequestPolicy(context);
+    const page = await context.newPage();
+    page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
+    await page.goto(parsedUrl.href, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT });
+    await page.waitForTimeout(500);
+    const links = await page.locator("a[href]").evaluateAll((anchors) => anchors.map((anchor) => (anchor as HTMLAnchorElement).href));
+    return normalizeInternalPageLinks(page.url(), links, limit);
+  } finally {
+    await context?.close();
+    await browser.close();
+  }
+}
+
+async function installRequestPolicy(context: BrowserContext): Promise<void> {
+  // Every browser request, including redirects and subresources, is checked before Chromium follows it.
+  await context.route("**/*", async (route) => {
+    try {
+      const target = new URL(route.request().url());
+      if (!validateUrl(target.href).valid || !(await validatePublicNetworkUrl(target))) {
+        await route.abort("blockedbyclient");
+        return;
+      }
+      await route.continue();
+    } catch {
+      await route.abort("blockedbyclient");
+    }
+  });
+}
+
+export async function extractElements(page: Page): Promise<ElementInfo[]> {
   return page.evaluate(() => {
     const tags = new Set(["section", "div", "header", "footer", "nav", "main", "article", "aside",
       "h1", "h2", "h3", "h4", "h5", "h6", "p", "a", "button", "img", "span", "ul", "ol", "li",
@@ -146,7 +178,7 @@ async function extractElements(page: Page): Promise<ElementInfo[]> {
   });
 }
 
-async function extractAssets(page: Page, capture: CaptureResult): Promise<void> {
+export async function extractAssets(page: Page, capture: CaptureResult): Promise<void> {
   const candidates = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLImageElement>("img[src], source[src]"))
     .map((el) => ({ url: el.currentSrc || el.src, alt: el.getAttribute("alt") })));
   const seen = new Set<string>(); let totalBytes = 0;

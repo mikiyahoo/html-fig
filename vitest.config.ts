@@ -3,11 +3,11 @@ import path from "path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  root: process.cwd(),
   test: {
     globals: true,
     environment: "node",
-    dir: "./tests",
-    include: ["*.test.ts"],
+    include: ["tests/**/*.test.ts"],
     coverage: {
       provider: "istanbul",
       reporter: ["text", "json", "html"],

@@ -158,6 +158,11 @@ export function getCaptureDir(captureId: string): string {
   return path.join(STORAGE_DIR, captureId);
 }
 
+/** Get the local storage directory for a multi-page capture manifest. */
+export function getBatchDir(batchId: string): string {
+  return path.join(STORAGE_DIR, "batches", batchId);
+}
+
 /**
  * Get screenshot path
  */
@@ -170,4 +175,36 @@ export function getScreenshotPath(captureId: string, filename: string): string {
  */
 export function getAssetsDir(captureId: string): string {
   return path.join(getCaptureDir(captureId), "assets");
+}
+
+/** Return saved captures and website packages, newest first, for the dashboard. */
+export function listRecentCaptures(limit = 20): Array<{
+  id: string; batchId?: string; originalUrl: string; state: "completed"; progress: string;
+  errors: string[]; warnings: string[]; screenshotUrl: string; elapsedTime: number;
+  startedAt: string; completedAt: string;
+}> {
+  if (!fs.existsSync(STORAGE_DIR)) return [];
+  const items: ReturnType<typeof listRecentCaptures> = [];
+  for (const entry of fs.readdirSync(STORAGE_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const entryPath = path.join(STORAGE_DIR, entry.name);
+    if (entry.name === "batches") {
+      for (const batchEntry of fs.readdirSync(entryPath, { withFileTypes: true })) {
+        if (!batchEntry.isDirectory()) continue;
+        try {
+          const batchId = batchEntry.name;
+          const batch = JSON.parse(fs.readFileSync(path.join(entryPath, batchId, "batch.json"), "utf8")) as { pageCaptureIds: string[]; failures?: Array<{ error: string }> };
+          const firstPath = path.join(getCaptureDir(batch.pageCaptureIds[0] || ""), "page.json");
+          const capture = JSON.parse(fs.readFileSync(firstPath, "utf8")) as CaptureResult;
+          items.push({ id: capture.id, batchId, originalUrl: capture.originalUrl, state: "completed", progress: `Captured ${batch.pageCaptureIds.length} page(s)`, errors: (batch.failures || []).map((failure) => failure.error), warnings: capture.warnings, screenshotUrl: `/api/captures/${capture.id}/screenshot`, elapsedTime: 0, startedAt: capture.captureTimestamp, completedAt: capture.captureTimestamp });
+        } catch { /* Ignore incomplete or expired package metadata. */ }
+      }
+      continue;
+    }
+    try {
+      const capture = JSON.parse(fs.readFileSync(path.join(entryPath, "page.json"), "utf8")) as CaptureResult;
+      items.push({ id: capture.id, originalUrl: capture.originalUrl, state: "completed", progress: "Capture complete", errors: capture.errors, warnings: capture.warnings, screenshotUrl: `/api/captures/${capture.id}/screenshot`, elapsedTime: 0, startedAt: capture.captureTimestamp, completedAt: capture.captureTimestamp });
+    } catch { /* Ignore incomplete captures. */ }
+  }
+  return items.sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, Math.max(1, limit));
 }

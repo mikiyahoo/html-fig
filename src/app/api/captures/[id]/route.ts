@@ -24,27 +24,16 @@ export async function GET(
       );
     }
 
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
     const pagePath = path.join(captureDir, "page.json");
     const pageData = fs.existsSync(pagePath)
       ? JSON.parse(fs.readFileSync(pagePath, "utf-8"))
       : null;
 
-    // Build response
-    const response = {
-      id,
-      status: "completed",
-      originalUrl: manifest.sourceUrl,
-      finalUrl: pageData?.finalUrl || manifest.sourceUrl,
-      warnings: manifest.warnings,
-      errors: [],
-      startedAt: manifest.timestamp,
-      completedAt: manifest.timestamp,
-      screenshotUrl: pageData?.screenshot ? `/api/captures/${id}/screenshot` : null,
-      elapsedTime: 0,
-    };
+    if (!pageData) {
+      return NextResponse.json({ error: "Capture data not found", code: "NOT_FOUND" }, { status: 404 });
+    }
 
-    return NextResponse.json(response);
+    return NextResponse.json(pageData);
 
   } catch (error) {
     console.error("Capture status error:", error);

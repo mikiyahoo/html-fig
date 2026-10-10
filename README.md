@@ -2,6 +2,15 @@
 
 A Next.js application that captures a website page and prepares structured data for future Figma reconstruction.
 
+## Implementation status
+
+- Phase 1: Chromium capture, extracted DOM/style data, assets, screenshots, and ZIP export.
+- Phase 2: Versioned design tree with layout and styling hints in `design.json`.
+- Phase 3: Companion Figma plugin that imports editable frames, text, and packaged images.
+- Phase 4: Same-origin page discovery, selection, multi-page capture, and one website ZIP.
+
+The plugin creates nodes inside Figma; the web app does not generate a `.fig` file. Grid layout, CSS backgrounds, complex effects, and some image/font formats are represented with warnings or simplified nodes.
+
 ## Run locally
 
 From the repository root:
@@ -23,3 +32,7 @@ The Next.js app and its `package.json` are in this repository root. Import the r
 The capture API launches Playwright/Chromium and saves capture artifacts locally. For production use on Vercel, configure a compatible Chromium runtime or remote browser service and persistent storage for capture files; function-local files are not durable across requests.
 
 See [Phase 1 plan](PHASE1_PLAN.md) and [product roadmap](Phase%20Plan.md).
+
+## Figma plugin
+
+Single-page and website ZIPs include `design.json`. Build and load the companion plugin by following [figma-plugin/README.md](figma-plugin/README.md). The plugin supports both ZIP formats and creates one frame per page.

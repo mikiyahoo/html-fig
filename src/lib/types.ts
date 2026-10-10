@@ -123,6 +123,7 @@ export type CaptureState = "idle" | "pending" | "running" | "completed" | "faile
 
 export interface CaptureStatus {
   id: string;
+  batchId?: string;
   originalUrl: string;
   state: CaptureState;
   progress: string;

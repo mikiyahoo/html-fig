@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root { font: 13px Inter, sans-serif; color: var(--figma-color-text, #1f2937); background: var(--figma-color-bg, #fff); }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 20px; }
+      h1 { margin: 0 0 6px; font-size: 18px; }
+      p { margin: 0 0 16px; color: var(--figma-color-text-secondary, #667085); line-height: 1.45; }
+      label.file { display: block; padding: 22px 16px; border: 1px dashed var(--figma-color-border, #b8bec8); border-radius: 8px; text-align: center; cursor: pointer; }
+      input[type=file] { display: none; }
+      #file-name { margin-top: 8px; color: var(--figma-color-text, #1f2937); overflow-wrap: anywhere; }
+      button { width: 100%; margin-top: 14px; padding: 10px 14px; border: 0; border-radius: 6px; background: #2563eb; color: white; font: inherit; font-weight: 600; cursor: pointer; }
+      button:disabled { opacity: .45; cursor: default; }
+      #status { min-height: 20px; margin-top: 14px; white-space: pre-wrap; line-height: 1.45; }
+      #status[data-error] { color: #dc2626; }
+      #status[data-success] { color: #15803d; }
+      .hint { margin-top: 14px; padding: 10px; border-radius: 6px; background: var(--figma-color-bg-secondary, #f3f4f6); font-size: 12px; }
+    </style>
+    <script src="./vendor/jszip.min.js"></script>
+  </head>
+  <body>
+    <h1>Web to Figma</h1>
+    <p>Import a capture package and create editable layers in this Figma file.</p>
+    <label class="file" for="package">Choose a capture ZIP</label>
+    <input id="package" type="file" accept=".zip,application/zip" />
+    <div id="file-name"></div>
+    <button id="import" disabled>Import design</button>
+    <div id="status" role="status"></div>
+    <div class="hint">The importer creates native frames and text, and embeds supported image assets. The design is approximate for complex CSS, grid, and effects.</div>
+    <script>
+      const input = document.getElementById("package");
+      const button = document.getElementById("import");
+      const status = document.getElementById("status");
+      let selectedFile = null;
+
+      input.addEventListener("change", () => {
+        selectedFile = input.files && input.files[0];
+        document.getElementById("file-name").textContent = selectedFile ? selectedFile.name : "";
+        button.disabled = !selectedFile;
+        status.textContent = "";
+        status.removeAttribute("data-error");
+      });
+
+      button.addEventListener("click", async () => {
+        if (!selectedFile) return;
+        button.disabled = true;
+        status.textContent = "Reading capture package…";
+        try {
+          const archive = await JSZip.loadAsync(selectedFile);
+          const designPaths = Object.keys(archive.files)
+            .filter((path) => path === "design.json" || /^pages\/[^/]+\/design\.json$/.test(path))
+            .sort();
+          if (!designPaths.length) throw new Error("This ZIP does not contain design.json. Export a capture package from Web to Figma.");
+          const pages = [];
+          for (const designPath of designPaths) {
+            const prefix = designPath.slice(0, -"design.json".length);
+            const design = JSON.parse(await archive.file(designPath).async("string"));
+            const assetPaths = new Set();
+            collectAssetPaths(design.root, assetPaths);
+            const assets = {};
+            for (const assetPath of assetPaths) {
+              const assetFile = archive.file(prefix + assetPath);
+              if (assetFile) assets[assetPath] = await assetFile.async("uint8array");
+            }
+            pages.push({ design, assets });
+          }
+          parent.postMessage({ pluginMessage: { type: "import", pages } }, "*");
+          status.textContent = "Importing editable layers into Figma…";
+        } catch (error) {
+          status.dataset.error = "true";
+          status.textContent = error instanceof Error ? error.message : "Could not read this ZIP package.";
+          button.disabled = false;
+        }
+      });
+
+      function collectAssetPaths(node, paths) {
+        if (node && node.image && node.image.packagePath) paths.add(node.image.packagePath);
+        for (const child of (node && node.children) || []) collectAssetPaths(child, paths);
+      }
+
+      onmessage = (event) => {
+        const message = event.data && event.data.pluginMessage;
+        if (!message) return;
+        if (message.type === "progress") status.textContent = message.text;
+        if (message.type === "complete") {
+          status.dataset.success = "true";
+          status.textContent = message.text;
+          button.disabled = false;
+        }
+        if (message.type === "warnings") {
+          status.textContent += "\n\nNotes:\n• " + message.warnings.join("\n• ");
+        }
+        if (message.type === "error") {
+          status.dataset.error = "true";
+          status.textContent = message.text;
+          button.disabled = false;
+        }
+      };
+    </script>
+  </body>
+</html>

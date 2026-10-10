@@ -5,10 +5,11 @@ import { ArrowRight, ExternalLink } from "lucide-react";
 
 interface DashboardProps {
   onNavigateToCapture: () => void;
+  onViewCapture: (captureId: string, batchId?: string) => void;
   recentCaptures: CaptureStatus[];
 }
 
-export default function Dashboard({ onNavigateToCapture, recentCaptures }: DashboardProps) {
+export default function Dashboard({ onNavigateToCapture, onViewCapture, recentCaptures }: DashboardProps) {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -43,7 +44,10 @@ export default function Dashboard({ onNavigateToCapture, recentCaptures }: Dashb
                     {capture.state} - {new Date(capture.completedAt || capture.startedAt || "").toLocaleString()}
                   </p>
                 </div>
-                <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                <button
+                  onClick={() => onViewCapture(capture.id, capture.batchId)}
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                >
                   View <ExternalLink className="w-3 h-3 inline ml-1" />
                 </button>
               </li>

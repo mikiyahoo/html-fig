@@ -36,9 +36,9 @@ body {
 }
 
 body {
-  color: rgb(222.2 84% 4.9%);
+  color: hsl(222.2 84% 4.9%);
   background: white;
-  font-family: var(--font-inter), system-ui, sans-serif;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 ::-webkit-scrollbar {
@@ -61,7 +61,7 @@ body {
 
 ::selection {
   background: rgb(59 130 246 / 0.2);
-  color: rgb(222.2 84% 4.9%);
+  color: hsl(222.2 84% 4.9%);
 }
 
 html {
@@ -76,9 +76,9 @@ html {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgb(var(--muted) / 0.2) 25%,
-    rgb(var(--muted) / 0.4) 50%,
-    rgb(var(--muted) / 0.2) 75%
+    hsl(var(--muted) / 0.2) 25%,
+    hsl(var(--muted) / 0.4) 50%,
+    hsl(var(--muted) / 0.2) 75%
   );
   background-size: 200% 100%;
   animation: pulse 1.5s ease-in-out infinite;
@@ -99,8 +99,8 @@ html {
   width: 16px;
   height: 16px;
   margin: -8px 0 0 -8px;
-  border: 2px solid rgb(var(--primary-foreground) / 0.6);
-  border-top-color: rgb(var(--primary-foreground));
+  border: 2px solid hsl(var(--primary-foreground) / 0.6);
+  border-top-color: hsl(var(--primary-foreground));
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -112,7 +112,7 @@ html {
   justify-content: center;
   padding: 3rem;
   text-align: center;
-  color: rgb(var(--muted-foreground));
+  color: hsl(var(--muted-foreground));
 }
 
 .empty-state .empty-state-icon {
@@ -124,7 +124,7 @@ html {
 .empty-state h3 {
   font-size: 1.125rem;
   font-weight: 700;
-  color: rgb(var(--foreground));
+  color: hsl(var(--foreground));
   margin-bottom: 0.25rem;
 }
 
@@ -220,13 +220,13 @@ html {
 }
 
 .status-badge[data-status="idle"] {
-  background: rgb(var(--secondary) / 0.1);
-  color: rgb(var(--secondary-foreground));
+  background: hsl(var(--secondary) / 0.1);
+  color: hsl(var(--secondary-foreground));
 }
 
 .status-badge[data-status="loading"] {
-  background: rgb(var(--primary) / 0.1);
-  color: rgb(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .status-badge[data-status="success"] {
@@ -262,8 +262,8 @@ html {
 }
 
 .capture-progress-step[data-state="active"] {
-  background: rgb(var(--primary) / 0.1);
-  color: rgb(var(--primary));
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
 }
 
 .capture-progress-step[data-state="completed"] {
@@ -272,8 +272,8 @@ html {
 }
 
 .capture-progress-step[data-state="pending"] {
-  background: rgb(var(--secondary) / 0.1);
-  color: rgb(var(--secondary-foreground));
+  background: hsl(var(--secondary) / 0.1);
+  color: hsl(var(--secondary-foreground));
 }
 
 .capture-progress-step .step-number {
@@ -289,8 +289,8 @@ html {
 }
 
 .capture-progress-step[data-state="active"] .step-number {
-  background: rgb(var(--primary));
-  color: rgb(var(--primary-foreground));
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
 }
 
 .capture-progress-step[data-state="completed"] .step-number {
@@ -299,6 +299,6 @@ html {
 }
 
 .capture-progress-step[data-state="pending"] .step-number {
-  background: rgb(var(--secondary));
-  color: rgb(var(--secondary-foreground));
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
 }
