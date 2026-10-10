@@ -6,6 +6,7 @@ import ImportPanel from "@/components/ImportPanel/ImportPanel";
 import CaptureWorkspace from "@/components/CaptureWorkspace/CaptureWorkspace";
 import type { CaptureResult, CaptureStatus } from "@/lib/types";
 import type { Viewport } from "@/lib/url-validator";
+import { Check, Globe2, Loader2, X } from "lucide-react";
 
 type CaptureOptions = {
   viewport: "desktop" | "tablet" | "mobile";
@@ -22,6 +23,7 @@ export default function Home() {
   const [captures, setCaptures] = useState<CaptureResult[]>([]);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showCaptureDrawer, setShowCaptureDrawer] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [initialUrl, setInitialUrl] = useState("");
   const [initialViewport, setInitialViewport] = useState<Viewport>("desktop");
@@ -34,8 +36,8 @@ export default function Home() {
   }, []);
 
   const handleImport = async (input: CaptureOptions & { urls: string[] }) => {
-    setView("capture");
     setIsLoading(true);
+    setShowCaptureDrawer(true);
     setError(undefined);
     setCaptures([]);
     setBatchId(null);
@@ -86,9 +88,12 @@ export default function Home() {
         recent,
         ...current.filter((capture) => capture.batchId !== payload.batchId && capture.id !== first.id),
       ].slice(0, 20));
+      setShowCaptureDrawer(false);
+      setView("capture");
     } catch (err) {
       const message = (err as Error).message;
       setError(message);
+      setShowCaptureDrawer(false);
       setStatus({
         id: "failed",
         originalUrl: input.urls[0] || "",
@@ -212,7 +217,64 @@ export default function Home() {
           onResultChange={(capture) => setCaptures(capture ? [capture] : [])}
         />
       )}
+      {showCaptureDrawer && view === "import" && (
+        <CaptureProgressDrawer
+          status={status}
+          onClose={() => setShowCaptureDrawer(false)}
+        />
+      )}
     </main>
+  );
+}
+
+function CaptureProgressDrawer({ status, onClose }: { status: CaptureStatus | null; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50">
+      <button type="button" aria-label="Continue capture in background" onClick={onClose} className="absolute inset-0 cursor-default bg-slate-950/30" />
+      <aside role="dialog" aria-modal="true" aria-labelledby="capture-drawer-title" className="capture-progress-drawer absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-slate-200 bg-white shadow-2xl">
+        <header className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-600"><Globe2 className="h-5 w-5" /></span>
+            <div>
+              <h2 id="capture-drawer-title" className="text-base font-semibold text-slate-900">Capturing Website</h2>
+              <p className="mt-0.5 text-xs text-slate-500">Your capture is running in the background</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Hide progress panel" className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"><X className="h-5 w-5" /></button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-blue-600 shadow-sm"><Loader2 className="h-4 w-4 animate-spin" /></span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900">{status?.progress || "Starting capture…"}</p>
+                <p className="mt-1 break-all text-xs text-slate-600">{status?.originalUrl}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 space-y-6">
+            <div className="flex items-start gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600"><Check className="h-4 w-4" /></span>
+              <div><p className="text-sm font-medium text-slate-800">Opening selected pages</p><p className="mt-1 text-xs text-slate-500">The browser is loading the website at your chosen viewport.</p></div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-blue-50 text-blue-600"><Loader2 className="h-4 w-4 animate-spin" /></span>
+              <div><p className="text-sm font-medium text-slate-800">Capturing structure and assets</p><p className="mt-1 text-xs text-slate-500">Text, layout, colors, images, and fonts are being collected.</p></div>
+            </div>
+            <div className="flex items-start gap-3 opacity-50">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><span className="h-2 w-2 rounded-full bg-current" /></span>
+              <div><p className="text-sm font-medium text-slate-800">Preparing editable design</p><p className="mt-1 text-xs text-slate-500">When capture completes, the results will open automatically.</p></div>
+            </div>
+          </div>
+
+          <div className="mt-8 space-y-2"><div className="skeleton h-2 w-full rounded-full" /><div className="skeleton h-2 w-2/3 rounded-full" /></div>
+        </div>
+
+        <footer className="border-t border-slate-200 px-6 py-4 text-xs text-slate-500">You can hide this panel. The capture will continue and open the results when it finishes.</footer>
+      </aside>
+    </div>
   );
 }
 
