@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { CaptureStatus } from "@/lib/types";
 import type { CaptureInput, Viewport } from "@/lib/url-validator";
 import { validateUrl, VIEWPORT_LABELS } from "@/lib/url-validator";
-import { AlertCircle, ArrowRight, Check, Clock3, ExternalLink, Folder, Globe2, Layers3, Loader2, Link2, Monitor, Search, Smartphone, Tablet, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, Clock3, ExternalLink, Folder, Globe2, Layers3, Loader2, Link2, Monitor, Search, Smartphone, Tablet, Trash2, Upload, WandSparkles, X } from "lucide-react";
 
 interface DashboardProps {
   onImport: (input: Omit<CaptureInput, "url"> & { urls: string[]; viewports: Viewport[] }) => void;
@@ -173,16 +173,23 @@ export default function Dashboard({ onImport, onViewCapture, onDeleteCapture, re
             </div>
           </section>
 
-          <section className="py-7 sm:py-8">
+          <section className="border-b border-slate-200 pb-7 pt-7 sm:pb-8 sm:pt-8">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">How it works</h2>
             <p className="mt-1 text-sm text-slate-500">From a website URL to an editable Figma design in a few simple steps.</p>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-6 grid gap-7 sm:grid-cols-2 xl:grid-cols-4 xl:gap-8">
               {[
-                { icon: Link2, title: "1. Enter URL", body: "Paste a website link and choose the screen size." },
-                { icon: Monitor, title: "2. Capture website", body: "Playwright opens the page and records its visible structure and assets." },
-                { icon: Layers3, title: "3. Convert & organize", body: "The page becomes a structured set of editable design layers." },
-                { icon: ExternalLink, title: "4. Open in Figma", body: "Import the design in Figma, then save a local copy there." },
-              ].map(({ icon: Icon, title, body }) => <article key={title} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 grid h-10 w-10 place-items-center rounded-full bg-blue-50 text-blue-600"><Icon className="h-5 w-5" /></div><h3 className="text-sm font-semibold text-slate-900">{title}</h3><p className="mt-1 text-xs leading-5 text-slate-500">{body}</p></article>)}
+                { icon: Link2, color: "bg-sky-50 text-blue-600", title: "1. Enter URL", body: "Paste the website link and choose your settings." },
+                { icon: Monitor, color: "bg-violet-50 text-violet-600", title: "2. Capture Website", body: "We open the site in a real browser, extract the structure, styles and assets." },
+                { icon: WandSparkles, color: "bg-emerald-50 text-emerald-600", title: "3. Convert & Organize", body: "We analyze the design and prepare it for Figma with a clean structure." },
+                { icon: null, color: "bg-pink-50 text-pink-600", title: "4. Open in Figma", body: "Launch the design in Figma and save your .fig file." },
+              ].map(({ icon: Icon, color, title, body }, index) => <article key={title} className="relative min-w-0">
+                <div className={`mb-3 grid h-14 w-14 place-items-center rounded-full ${color}`}>
+                  {Icon ? <Icon className="h-6 w-6" strokeWidth={2.2} /> : <FigmaMark />}
+                </div>
+                <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+                <p className="mt-2 max-w-[17rem] text-xs leading-5 text-slate-500">{body}</p>
+                {index < 3 && <ArrowRight aria-hidden="true" className="absolute right-[-1.1rem] top-6 hidden h-4 w-4 text-blue-200 xl:block" strokeWidth={1.5} />}
+              </article>)}
             </div>
           </section>
 
@@ -231,6 +238,16 @@ export default function Dashboard({ onImport, onViewCapture, onDeleteCapture, re
       </div>}
     </div>
   );
+}
+
+function FigmaMark() {
+  return <svg aria-hidden="true" viewBox="0 0 24 32" className="h-7 w-6">
+    <path d="M7 1h5v9H7a4.5 4.5 0 0 1 0-9Z" fill="#F24E1E" />
+    <path d="M12 1h5a4.5 4.5 0 0 1 0 9h-5V1Z" fill="#FF7262" />
+    <path d="M7 10h5v9H7a4.5 4.5 0 0 1 0-9Z" fill="#A259FF" />
+    <circle cx="16.5" cy="14.5" r="4.5" fill="#1ABCFE" />
+    <path d="M7 19h5v4.5A4.5 4.5 0 1 1 7 19Z" fill="#0ACF83" />
+  </svg>;
 }
 
 function formatRelativeDate(value: string | null | undefined): string {
