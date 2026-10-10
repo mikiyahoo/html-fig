@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { CaptureStatus } from "@/lib/types";
-import { ArrowRight, ExternalLink, Trash2 } from "lucide-react";
+import { ArrowRight, ExternalLink, Loader2, Trash2, X } from "lucide-react";
 
 interface DashboardProps {
   onNavigateToCapture: () => void;
@@ -11,6 +12,24 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ onNavigateToCapture, onViewCapture, onDeleteCapture, recentCaptures }: DashboardProps) {
+  const [pendingDelete, setPendingDelete] = useState<CaptureStatus | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const confirmDelete = async () => {
+    if (!pendingDelete || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDeleteCapture(pendingDelete);
+      setPendingDelete(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Could not delete this capture project.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -53,7 +72,7 @@ export default function Dashboard({ onNavigateToCapture, onViewCapture, onDelete
                     View <ExternalLink className="w-3 h-3 inline ml-1" />
                   </button>
                   <button
-                    onClick={() => onDeleteCapture(capture)}
+                    onClick={() => { setDeleteError(null); setPendingDelete(capture); }}
                     title="Delete recent project"
                     aria-label={`Delete capture project ${capture.originalUrl}`}
                     className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-700 focus-ring"
@@ -88,6 +107,29 @@ export default function Dashboard({ onNavigateToCapture, onViewCapture, onDelete
             <ArrowRight className="w-4 h-4" />
             Import Your First Website
           </button>
+        </div>
+      )}
+
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget && !deleting) setPendingDelete(null); }}>
+          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-project-title" aria-describedby="delete-project-description" className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="delete-project-title" className="text-lg font-semibold text-gray-900">Delete capture project?</h2>
+                <p id="delete-project-description" className="mt-2 break-all text-sm text-gray-600">{pendingDelete.originalUrl}</p>
+                <p className="mt-2 text-sm text-gray-500">Its saved screens and assets will be removed.</p>
+              </div>
+              <button type="button" aria-label="Close confirmation" onClick={() => setPendingDelete(null)} disabled={deleting} className="rounded p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"><X className="h-5 w-5" /></button>
+            </div>
+            {deleteError && <p role="alert" className="mt-4 text-sm text-red-600">{deleteError}</p>}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setPendingDelete(null)} disabled={deleting} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+              <button type="button" onClick={confirmDelete} disabled={deleting} className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60">
+                {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+                {deleting ? "Deleting…" : "Delete project"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </div>
