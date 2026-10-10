@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { generateCaptureId, startCapture } from "@/lib/capture";
-import { getBatchDir } from "@/lib/storage";
+import { cleanupOldCaptures, getBatchDir } from "@/lib/storage";
 import { validateUrl } from "@/lib/url-validator";
 import { validatePublicNetworkUrl } from "@/lib/server-url-validator";
 
@@ -17,6 +17,7 @@ const batchSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    cleanupOldCaptures();
     const parsed = batchSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json({ error: "Validation failed", details: "Select between 1 and 10 valid page URLs." }, { status: 400 });

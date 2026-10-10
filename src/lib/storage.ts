@@ -137,18 +137,33 @@ export function cleanupOldCaptures(): void {
 
   const now = Date.now();
   const retentionMs = RETENTION_PERIOD * 24 * 60 * 60 * 1000;
+  const cutoff = now - retentionMs;
+  const batchesPath = path.join(STORAGE_DIR, "batches");
 
-  fs.readdirSync(STORAGE_DIR).forEach((item) => {
-    const itemPath = path.join(STORAGE_DIR, item);
+  // Capture folders are direct children of STORAGE_DIR. Batch manifests live
+  // one level deeper, so clean each batch independently instead of relying on
+  // the parent `batches` directory's timestamp.
+  for (const item of fs.readdirSync(STORAGE_DIR, { withFileTypes: true })) {
+    const itemPath = path.join(STORAGE_DIR, item.name);
     try {
-      const stats = fs.statSync(itemPath);
-      if (stats.isDirectory() && (now - stats.mtimeMs) > retentionMs) {
+      if (!item.isDirectory()) continue;
+      if (itemPath === batchesPath) {
+        for (const batch of fs.readdirSync(batchesPath, { withFileTypes: true })) {
+          if (!batch.isDirectory()) continue;
+          const batchPath = path.join(batchesPath, batch.name);
+          if (fs.statSync(batchPath).mtimeMs < cutoff) {
+            fs.rmSync(batchPath, { recursive: true, force: true });
+          }
+        }
+        continue;
+      }
+      if (fs.statSync(itemPath).mtimeMs < cutoff) {
         fs.rmSync(itemPath, { recursive: true, force: true });
       }
     } catch {
-      // Ignore errors
+      // A concurrent capture or filesystem cleanup should not fail a request.
     }
-  });
+  }
 }
 
 /**

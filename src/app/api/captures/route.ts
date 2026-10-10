@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateUrl } from "@/lib/url-validator";
 import { startCapture } from "@/lib/capture";
-import { listRecentCaptures } from "@/lib/storage";
+import { cleanupOldCaptures, listRecentCaptures } from "@/lib/storage";
 
 export async function GET() {
+  cleanupOldCaptures();
   return NextResponse.json({ captures: listRecentCaptures() });
 }
 
@@ -18,6 +19,7 @@ const captureBodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    cleanupOldCaptures();
     const body = await request.json();
     const parsed = captureBodySchema.safeParse(body);
 

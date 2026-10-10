@@ -23,6 +23,8 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+Capture data is stored under `temp/captures` and expires after seven days by default. Set `STORAGE_DIR` to choose another local path or `CAPTURE_RETENTION_DAYS` to change the retention period. Expired page captures and batch manifests are cleaned during capture and recent-project requests.
+
 ## Deploy to Vercel
 
 The Next.js app and its `package.json` are in this repository root. Import the repository in Vercel, choose the **Next.js** framework preset, and keep the default build and output settings. Vercel will use `npm run build` (`next build`).
