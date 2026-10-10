@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import type { CaptureResult } from "@/lib/types";
 import { createSiteCaptureZip, generateSafeFilename } from "@/lib/zip-export";
-import { getBatchDir, getCaptureDir } from "@/lib/storage";
+import { readBatchManifest, readCapture } from "@/lib/storage";
 
 export async function GET(
   _request: NextRequest,
@@ -15,16 +13,15 @@ export async function GET(
   }
 
   try {
-    const manifestPath = path.join(getBatchDir(id), "batch.json");
-    if (!fs.existsSync(manifestPath)) {
+    const batch = await readBatchManifest(id);
+    if (!batch) {
       return NextResponse.json({ error: "Capture package not found", code: "NOT_FOUND" }, { status: 404 });
     }
-    const batch = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as { pageCaptureIds: string[] };
     const captures: CaptureResult[] = [];
     for (const captureId of batch.pageCaptureIds) {
       if (!/^[0-9a-f-]{36}$/i.test(captureId)) continue;
-      const pagePath = path.join(getCaptureDir(captureId), "page.json");
-      if (fs.existsSync(pagePath)) captures.push(JSON.parse(fs.readFileSync(pagePath, "utf8")) as CaptureResult);
+      const capture = await readCapture(captureId);
+      if (capture) captures.push(capture);
     }
     if (!captures.length) {
       return NextResponse.json({ error: "No captured pages remain in this package." }, { status: 404 });

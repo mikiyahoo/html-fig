@@ -1,7 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getCaptureDir } from "@/lib/storage";
-import fs from "fs";
-import path from "path";
+import { readCapture } from "@/lib/storage";
 
 export async function GET(
   request: NextRequest,
@@ -13,21 +11,7 @@ export async function GET(
       return NextResponse.json({ error: "Capture not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    const captureDir = getCaptureDir(id);
-
-    // Check if capture exists
-    const manifestPath = path.join(captureDir, "manifest.json");
-    if (!fs.existsSync(manifestPath)) {
-      return NextResponse.json(
-        { error: "Capture not found", code: "NOT_FOUND" },
-        { status: 404 }
-      );
-    }
-
-    const pagePath = path.join(captureDir, "page.json");
-    const pageData = fs.existsSync(pagePath)
-      ? JSON.parse(fs.readFileSync(pagePath, "utf-8"))
-      : null;
+    const pageData = await readCapture(id);
 
     if (!pageData) {
       return NextResponse.json({ error: "Capture data not found", code: "NOT_FOUND" }, { status: 404 });

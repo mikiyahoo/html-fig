@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import type { CaptureResult } from "@/lib/types";
 import { createCaptureZip } from "@/lib/zip-export";
-import { generateSafeFilename, getCaptureDir } from "@/lib/storage";
+import { generateSafeFilename, readCapture } from "@/lib/storage";
 
 export async function GET(
   _request: NextRequest,
@@ -15,13 +13,11 @@ export async function GET(
   }
 
   try {
-    const captureDir = getCaptureDir(id);
-    const pagePath = path.join(captureDir, "page.json");
-    if (!fs.existsSync(pagePath)) {
+    const capture = await readCapture(id);
+    if (!capture) {
       return NextResponse.json({ error: "Capture not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    const capture = JSON.parse(fs.readFileSync(pagePath, "utf8")) as CaptureResult;
     const zipBuffer = await createCaptureZip(capture);
     // Node's Buffer is a valid response body at runtime; the DOM BodyInit
     // declaration used by this Next.js version does not include Buffer<ArrayBufferLike>.

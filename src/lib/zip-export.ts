@@ -1,7 +1,5 @@
 import JSZip from "jszip";
-import fs from "node:fs";
-import path from "node:path";
-import { getAssetsDir, getScreenshotPath } from "./storage";
+import { readStoredFile } from "./storage";
 import { buildDesignTree } from "./design-tree";
 import type { CaptureResult } from "./types";
 
@@ -34,19 +32,20 @@ export async function createCaptureZip(capture: CaptureResult): Promise<Buffer> 
 
   // Add screenshots
   if (capture.screenshot) {
-    const screenshotPath = getScreenshotPath(capture.id, "viewport.png");
-    if (fs.existsSync(screenshotPath)) zip.file("screenshots/viewport.png", fs.readFileSync(screenshotPath));
+    const screenshot = await readStoredFile(`${capture.id}/screenshots/viewport.png`);
+    if (screenshot) zip.file("screenshots/viewport.png", screenshot);
   }
   if (capture.fullPageScreenshot) {
-    const screenshotPath = getScreenshotPath(capture.id, "full-page.png");
-    if (fs.existsSync(screenshotPath)) zip.file("screenshots/full-page.png", fs.readFileSync(screenshotPath));
+    const screenshot = await readStoredFile(`${capture.id}/screenshots/full-page.png`);
+    if (screenshot) zip.file("screenshots/full-page.png", screenshot);
   }
 
   // Add assets
   for (const asset of capture.assets) {
     if (asset.localPath && asset.fileName) {
-      const assetPath = path.join(getAssetsDir(capture.id), path.basename(asset.fileName));
-      if (fs.existsSync(assetPath)) zip.file(`assets/${path.basename(asset.fileName)}`, fs.readFileSync(assetPath));
+      const filename = asset.fileName.split(/[\\/]/).pop() || asset.fileName;
+      const assetData = await readStoredFile(`${capture.id}/assets/${filename}`);
+      if (assetData) zip.file(`assets/${filename}`, assetData);
     }
   }
 

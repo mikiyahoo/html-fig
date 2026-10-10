@@ -1,7 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getCaptureDir } from "@/lib/storage";
-import fs from "fs";
-import path from "path";
+import { readStoredFile } from "@/lib/storage";
 
 export async function GET(
   request: NextRequest,
@@ -13,18 +11,15 @@ export async function GET(
       return NextResponse.json({ error: "Screenshot not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    const captureDir = getCaptureDir(id);
-    const screenshotPath = path.join(captureDir, "screenshots", "viewport.png");
-
-    if (!fs.existsSync(screenshotPath)) {
+    const imageBuffer = await readStoredFile(`${id}/screenshots/viewport.png`);
+    if (!imageBuffer) {
       return NextResponse.json(
         { error: "Screenshot not found", code: "NOT_FOUND" },
         { status: 404 }
       );
     }
 
-    const imageBuffer = fs.readFileSync(screenshotPath);
-    return new NextResponse(imageBuffer, {
+    return new NextResponse(imageBuffer as unknown as BodyInit, {
       headers: {
         "Content-Type": "image/png",
         "Content-Length": imageBuffer.length.toString(),

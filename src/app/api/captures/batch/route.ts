@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import fs from "node:fs";
-import path from "node:path";
 import { z } from "zod";
 import { generateCaptureId, startCapture } from "@/lib/capture";
-import { cleanupOldCaptures, getBatchDir } from "@/lib/storage";
+import { assertStorageConfigured, cleanupOldCaptures, saveBatchManifest } from "@/lib/storage";
 import { validateUrl } from "@/lib/url-validator";
 import { validatePublicNetworkUrl } from "@/lib/server-url-validator";
 
@@ -19,7 +17,8 @@ const batchSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    cleanupOldCaptures();
+    await cleanupOldCaptures();
+    assertStorageConfigured();
     const parsed = batchSchema.safeParse(await request.json());
     if (!parsed.success) {
       return NextResponse.json({ error: "Validation failed", details: "Select between 1 and 10 valid page URLs." }, { status: 400 });
@@ -63,14 +62,12 @@ export async function POST(request: NextRequest) {
     }
 
     const batchId = generateCaptureId();
-    const batchDir = getBatchDir(batchId);
-    fs.mkdirSync(batchDir, { recursive: true });
-    fs.writeFileSync(path.join(batchDir, "batch.json"), JSON.stringify({
+    await saveBatchManifest(batchId, {
       id: batchId,
       createdAt: new Date().toISOString(),
       pageCaptureIds: captures.map((capture) => capture.id),
       failures,
-    }, null, 2));
+    });
 
     const publicCaptures = captures.map(({ assetFiles: _assetFiles, ...capture }) => capture);
     return NextResponse.json({

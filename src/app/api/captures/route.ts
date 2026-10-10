@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateUrl } from "@/lib/url-validator";
 import { startCapture } from "@/lib/capture";
-import { cleanupOldCaptures, listRecentCaptures } from "@/lib/storage";
+import { assertStorageConfigured, cleanupOldCaptures, listRecentCaptures } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
 export async function GET() {
-  cleanupOldCaptures();
-  return NextResponse.json({ captures: listRecentCaptures() });
+  await cleanupOldCaptures();
+  return NextResponse.json({ captures: await listRecentCaptures() });
 }
 
 const captureBodySchema = z.object({
@@ -21,7 +21,8 @@ const captureBodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    cleanupOldCaptures();
+    await cleanupOldCaptures();
+    assertStorageConfigured();
     const body = await request.json();
     const parsed = captureBodySchema.safeParse(body);
 

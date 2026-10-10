@@ -23,7 +23,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-Capture data is stored under `temp/captures` and expires after seven days by default. Set `STORAGE_DIR` to choose another local path or `CAPTURE_RETENTION_DAYS` to change the retention period. Expired page captures and batch manifests are cleaned during capture and recent-project requests.
+Local capture data is stored under `temp/captures` and expires after seven days by default. Set `STORAGE_DIR` to choose another local path or `CAPTURE_RETENTION_DAYS` to change the retention period. Expired page captures and batch manifests are cleaned during capture and recent-project requests.
 
 ## Deploy to Vercel
 
@@ -31,7 +31,7 @@ The Next.js app and its `package.json` are in this repository root. Import the r
 
 ## Important deployment requirements
 
-The capture API uses Playwright 1.62 with the matching serverless Chromium 153 binary on Vercel. Use Node.js 22.17 or newer. Capture files are written to the function's temporary directory; configure persistent storage if captures must remain available across serverless requests, because function-local files are not durable.
+The capture API uses Playwright 1.62 with the matching serverless Chromium 153 binary on Vercel. Use Node.js 22.17 or newer. Captures are stored in a private Vercel Blob store so screenshots and exports remain available across serverless requests. In the Vercel project, create a **private Blob store** under **Storage** and connect it to this project; Vercel supplies the store credentials automatically. The API returns a setup error if deployed without a connected store. Set `CAPTURE_RETENTION_DAYS` to change the seven-day retention period.
 
 See [Phase 1 plan](PHASE1_PLAN.md) and [product roadmap](Phase%20Plan.md).
 

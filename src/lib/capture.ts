@@ -91,7 +91,7 @@ export async function startCapture(url: string, settings: Partial<CaptureSetting
     capture.manifest.assetList = capture.assets;
     capture.manifest.warnings = capture.warnings;
     capture.manifest.packageContents = ["manifest.json", "page.json", "screenshots/", "assets/", "README.md"];
-    saveCaptureToStorage(capture, { viewport: viewportBuffer, fullPage: fullPageBuffer });
+    await saveCaptureToStorage(capture, { viewport: viewportBuffer, fullPage: fullPageBuffer });
     await context.close();
     return capture;
   } catch (error) {
