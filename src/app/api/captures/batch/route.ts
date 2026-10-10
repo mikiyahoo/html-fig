@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { send } from "@/lib/queue-client";
 import { generateCaptureId, startCapture } from "@/lib/capture";
 import { assertStorageConfigured, cleanupOldCaptures, saveBatchManifest } from "@/lib/storage";
 import { validateUrl } from "@/lib/url-validator";
@@ -48,6 +49,46 @@ export async function POST(request: NextRequest) {
     }
 
     const layoutCount = validatedUrls.length * viewports.length;
+    if (process.env.VERCEL) {
+      const batchId = generateCaptureId();
+      const viewSettings = {
+        fullPageScreenshot: parsed.data.fullPageScreenshot ?? false,
+        captureAssets: parsed.data.captureAssets ?? true,
+        captureSchemaVersion: parsed.data.captureSchemaVersion || 1,
+      };
+      await saveBatchManifest(batchId, {
+        id: batchId,
+        originalUrl: validatedUrls[0],
+        status: "pending",
+        progress: `Queued ${layoutCount} page layout(s)`,
+        createdAt: new Date().toISOString(),
+        pageCaptureIds: [],
+        completedLayouts: [],
+        failures: [],
+      });
+      try {
+        await send("html-to-figma-captures", {
+          batchId,
+          urls: validatedUrls,
+          viewports,
+          settings: viewSettings,
+          layoutIndex: 0,
+        }, { idempotencyKey: batchId });
+      } catch (error) {
+        await saveBatchManifest(batchId, {
+          id: batchId,
+          status: "failed",
+          progress: "Could not enqueue this capture batch",
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          pageCaptureIds: [],
+          failures: [{ url: validatedUrls[0], error: error instanceof Error ? error.message : "Queue publish failed" }],
+        });
+        throw error;
+      }
+      return NextResponse.json({ batchId, status: "pending", progress: `Queued ${layoutCount} page layout(s)`, captures: [], failures: [] }, { status: 202 });
+    }
+
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {

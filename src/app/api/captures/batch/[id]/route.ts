@@ -16,13 +16,16 @@ export async function GET(
     if (!batch) {
       return NextResponse.json({ error: "Capture package not found", code: "NOT_FOUND" }, { status: 404 });
     }
+    if (batch.status === "failed") {
+      return NextResponse.json({ batchId: id, status: batch.status, progress: batch.progress, captures: [], failures: batch.failures || [] });
+    }
     const captures: CaptureResult[] = [];
     for (const captureId of batch.pageCaptureIds) {
       if (!/^[0-9a-f-]{36}$/i.test(captureId)) continue;
       const capture = await readCapture(captureId);
       if (capture) captures.push(capture);
     }
-    return NextResponse.json({ batchId: id, captures, failures: batch.failures || [] });
+    return NextResponse.json({ batchId: id, status: batch.status || "completed", progress: batch.progress, captures, failures: batch.failures || [] });
   } catch (error) {
     console.error("Batch status error:", error);
     return NextResponse.json({ error: "Could not load the capture package." }, { status: 500 });

@@ -114,9 +114,17 @@ export default function Home() {
     setError(undefined);
     try {
       const url = savedBatchId ? `/api/captures/batch/${savedBatchId}` : `/api/captures/${id}`;
-      const response = await fetch(url);
-      const payload = await response.json();
+      let response = await fetch(url, { cache: "no-store" });
+      let payload = await response.json();
       if (!response.ok) throw new Error(payload.details || payload.error || "Could not load capture");
+      for (let attempt = 0; savedBatchId && (payload.status === "pending" || payload.status === "running") && attempt < 240; attempt += 1) {
+        setStatus((current) => current ? { ...current, state: payload.status, progress: payload.progress || "Waiting for a capture worker…" } : current);
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        response = await fetch(url, { cache: "no-store" });
+        payload = await response.json();
+      }
+      if (payload.status === "failed") throw new Error(payload.failures?.map((failure: { url: string; error: string }) => `${failure.url}: ${failure.error}`).join("\n") || payload.progress || "Capture failed");
+      if (payload.status === "pending" || payload.status === "running") throw new Error("This capture is still running. Open it again in a moment to check its progress.");
       const loaded = (savedBatchId ? payload.captures : [payload]) as CaptureResult[];
       setCaptures(loaded);
       setBatchId(savedBatchId || null);
@@ -204,7 +212,24 @@ async function readBatchResponse(response: Response, onProgress: (progress: stri
   }
 
   if (!response.headers.get("content-type")?.includes("application/x-ndjson")) {
-    return response.json() as Promise<BatchResponse>;
+    const payload = await response.json() as BatchResponse & { status?: string; progress?: string };
+    if (!response.ok) throw new Error((payload as unknown as { details?: string; error?: string }).details || (payload as unknown as { error?: string }).error || "Capture failed");
+    if (payload.status !== "pending" && payload.status !== "running") return payload;
+    if (!payload.batchId) throw new Error("The queued capture did not return a batch ID.");
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      onProgress(payload.progress || "Waiting for a capture worker…");
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const statusResponse = await fetch(`/api/captures/batch/${payload.batchId}`, { cache: "no-store" });
+      const status = await statusResponse.json() as BatchResponse & { status?: string; progress?: string; details?: string; error?: string };
+      if (!statusResponse.ok) throw new Error(status.details || status.error || "Could not check capture progress.");
+      onProgress(status.progress || (status.status === "pending" ? "Waiting for a capture worker…" : "Capturing selected pages…"));
+      if (status.status === "completed") return status;
+      if (status.status === "failed") {
+        const failureText = (status.failures || []).map((failure) => `${failure.url}: ${failure.error}`).join("\n");
+        throw new Error([status.progress || "All selected page layouts failed.", failureText].filter(Boolean).join("\n"));
+      }
+    }
+    throw new Error("Capture is taking longer than expected. Its status is saved and can be checked from Recent Capture Projects.");
   }
 
   if (!response.body) throw new Error("The capture stream was empty. Please try again.");

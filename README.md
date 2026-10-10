@@ -32,7 +32,9 @@ The Next.js app and its `package.json` are in this repository root. Import the r
 
 ## Important deployment requirements
 
-The capture API uses Playwright 1.62 with the matching serverless Chromium 153 binary on Vercel. Use Node.js 22.17 or newer. Captures are stored in a private Vercel Blob store so screenshots and exports remain available across serverless requests. In the Vercel project, create a **private Blob store** under **Storage** and connect it to this project; Vercel supplies the store credentials automatically. The API returns a setup error if deployed without a connected store. Set `CAPTURE_RETENTION_DAYS` to change the seven-day retention period.
+The capture API uses Playwright 1.62 with the matching serverless Chromium 153 binary on Vercel. Use Node.js 22.17 or newer. Captures are stored in a private Vercel Blob store so screenshots and exports remain available across serverless requests. In the Vercel project, create a **private Blob store** under **Storage** and connect it to this project; Vercel supplies the store credentials automatically. The API returns a setup error if deployed without a connected store.
+
+On Vercel, batch imports are submitted to Vercel Queues and each page layout runs as a separate queue delivery. The queue consumer and trigger are configured in `vercel.json`. Vercel Queues is currently in public beta; local development continues to use the synchronous capture stream. Set `CAPTURE_RETENTION_DAYS` to change the seven-day retention period.
 
 See [Phase 1 plan](PHASE1_PLAN.md) and [product roadmap](Phase%20Plan.md).
 

@@ -14,8 +14,8 @@ const BLOB_PREFIX = "html-to-figma/captures";
 // Retention period (in days)
 export const RETENTION_PERIOD = parseInt(process.env.CAPTURE_RETENTION_DAYS || "7", 10);
 type RecentCapture = {
-  id: string; batchId?: string; originalUrl: string; state: "completed"; progress: string;
-  errors: string[]; warnings: string[]; screenshotUrl: string; elapsedTime: number;
+  id: string; batchId?: string; originalUrl: string; state: "pending" | "running" | "completed" | "failed"; progress: string;
+  errors: string[]; warnings: string[]; screenshotUrl: string | null; elapsedTime: number;
   startedAt: string; completedAt: string;
 };
 
@@ -215,9 +215,21 @@ export async function readCapture(captureId: string): Promise<CaptureResult | nu
   return data ? JSON.parse(data.toString("utf8")) as CaptureResult : null;
 }
 
-export async function readBatchManifest(batchId: string): Promise<{ pageCaptureIds: string[]; failures?: Array<{ url: string; error: string }> } | null> {
+export type BatchManifest = {
+  id?: string;
+  originalUrl?: string;
+  status?: "pending" | "running" | "completed" | "failed";
+  progress?: string;
+  pageCaptureIds: string[];
+  completedLayouts?: string[];
+  failures?: Array<{ url: string; error: string }>;
+  createdAt?: string;
+  completedAt?: string;
+};
+
+export async function readBatchManifest(batchId: string): Promise<BatchManifest | null> {
   const data = await readStoredFile(`batches/${batchId}/batch.json`);
-  return data ? JSON.parse(data.toString("utf8")) as { pageCaptureIds: string[]; failures?: Array<{ url: string; error: string }> } : null;
+  return data ? JSON.parse(data.toString("utf8")) as BatchManifest : null;
 }
 
 /** Return saved captures and website packages, newest first, for the dashboard. */
@@ -239,6 +251,7 @@ export async function listRecentCaptures(limit = 20): Promise<RecentCapture[]> {
         batch?.pageCaptureIds.forEach((captureId) => batchedCaptureIds.add(captureId));
         const capture = batch?.pageCaptureIds[0] ? await readCapture(batch.pageCaptureIds[0]) : null;
         if (batch && capture) items.push({ id: capture.id, batchId, originalUrl: capture.originalUrl, state: "completed", progress: `Captured ${batch.pageCaptureIds.length} page(s)`, errors: (batch.failures || []).map((failure) => failure.error), warnings: capture.warnings, screenshotUrl: `/api/captures/${capture.id}/screenshot`, elapsedTime: 0, startedAt: capture.captureTimestamp, completedAt: capture.captureTimestamp });
+        else if (batch && batch.status && batch.status !== "completed") items.push({ id: batchId, batchId, originalUrl: batch.originalUrl || "Capture batch", state: batch.status, progress: batch.progress || "Capture queued", errors: (batch.failures || []).map((failure) => failure.error), warnings: [], screenshotUrl: null, elapsedTime: 0, startedAt: batch.createdAt || new Date(0).toISOString(), completedAt: batch.completedAt || batch.createdAt || new Date(0).toISOString() });
       } catch { /* Ignore partial package metadata. */ }
     }
     for (const captureId of captureIds) {

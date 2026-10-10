@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/queues/captures/route.ts": {
+      "maxDuration": 300,
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "html-to-figma-captures" }
+      ]
+    }
+  }
+}
