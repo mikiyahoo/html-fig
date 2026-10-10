@@ -5,7 +5,7 @@ const nextConfig = {
   reactStrictMode: true,
   // Keep `next dev` artifacts separate from `next build` so a production build
   // cannot replace the styles/chunks served by an already-running dev server.
-  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
+  distDir: process.env.NEXT_DIST_DIR || (process.env.NODE_ENV === "development" ? ".next-dev" : ".next"),
   experimental: {
     serverComponentsExternalPackages: ["@sparticuz/chromium"],
     outputFileTracingIncludes: {
