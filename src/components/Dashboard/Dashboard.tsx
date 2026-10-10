@@ -134,7 +134,7 @@ export default function Dashboard({ onImport, onViewCapture, onDeleteCapture, re
                       {(Object.keys(VIEWPORT_LABELS) as Viewport[]).map((item) => <option key={item} value={item}>{VIEWPORT_LABELS[item]}</option>)}
                     </select>
                   </label>
-                  <button type="submit" disabled={disabled || isDiscovering} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus-ring disabled:cursor-wait disabled:opacity-60">{isDiscovering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}{isDiscovering ? "Finding pages…" : "Find pages on this website"}</button>
+                  <button type="submit" disabled={disabled || isDiscovering} className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 focus-ring disabled:cursor-wait disabled:opacity-60">{isDiscovering ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}{isDiscovering ? "Finding pages…" : "Find pages on this website"}</button>
                 </form>
 
                 <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-medium text-slate-600">
@@ -150,7 +150,7 @@ export default function Dashboard({ onImport, onViewCapture, onDeleteCapture, re
                   <div className="max-h-48 space-y-2 overflow-y-auto">
                     {discoveredPages.map((page) => <label key={page} className="flex cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"><input type="checkbox" checked={selectedPages.includes(page)} disabled={disabled} onChange={(event) => setSelectedPages((current) => event.target.checked ? [...current, page] : current.filter((item) => item !== page))} className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" /><span className="break-all">{page}</span></label>)}
                   </div>
-                  <button type="button" onClick={submitImport} disabled={disabled || !selectedPages.length || responsiveLimitReached} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"><Search className="h-4 w-4" />Import {selectedPages.length} selected page{selectedPages.length === 1 ? "" : "s"}</button>
+                  <button type="button" onClick={submitImport} disabled={disabled || !selectedPages.length || responsiveLimitReached} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"><Search className="h-4 w-4" />Import {selectedPages.length} selected page{selectedPages.length === 1 ? "" : "s"}</button>
                 </div>}
               </div>
 
