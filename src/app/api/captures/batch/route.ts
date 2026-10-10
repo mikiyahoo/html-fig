@@ -7,6 +7,8 @@ import { cleanupOldCaptures, getBatchDir } from "@/lib/storage";
 import { validateUrl } from "@/lib/url-validator";
 import { validatePublicNetworkUrl } from "@/lib/server-url-validator";
 
+export const runtime = "nodejs";
+
 const batchSchema = z.object({
   urls: z.array(z.string().url()).min(1).max(10),
   viewport: z.enum(["desktop", "tablet", "mobile"]).optional(),

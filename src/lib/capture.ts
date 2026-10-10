@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { chromium as playwrightChromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { v4 as uuidv4 } from "uuid";
 import type { AssetManifest, CaptureResult, CaptureSettings, ElementInfo } from "./types";
 import { validateUrl, VIEWPORT_CONFIGS, type Viewport } from "./url-validator";
@@ -42,7 +42,7 @@ export async function startCapture(url: string, settings: Partial<CaptureSetting
       assetList: [], captureSettings, warnings: [], packageContents: [] },
   };
 
-  const browser = await chromium.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+  const browser = await launchBrowser();
   try {
     const viewport = getViewportConfig(captureSettings.viewport);
     const context = await browser.newContext({ viewport, locale: "en-US" });
@@ -109,7 +109,7 @@ export async function discoverInternalPages(url: string, limit = 10): Promise<st
   const parsedUrl = validation.parsedUrl;
   if (!(await validatePublicNetworkUrl(parsedUrl))) throw new Error("This URL does not resolve to a public network address.");
 
-  const browser = await chromium.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"] });
+  const browser = await launchBrowser();
   let context: BrowserContext | undefined;
   try {
     context = await browser.newContext({ viewport: VIEWPORT_CONFIGS.desktop });
@@ -124,6 +124,23 @@ export async function discoverInternalPages(url: string, limit = 10): Promise<st
     await context?.close();
     await browser.close();
   }
+}
+
+/** Use the bundled Linux binary on Vercel; use the Playwright-managed browser locally. */
+async function launchBrowser(): Promise<Browser> {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION) {
+    const { default: serverlessChromium } = await import("@sparticuz/chromium");
+    return playwrightChromium.launch({
+      args: serverlessChromium.args,
+      executablePath: await serverlessChromium.executablePath(),
+      headless: true,
+    });
+  }
+
+  return playwrightChromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+  });
 }
 
 async function installRequestPolicy(context: BrowserContext): Promise<void> {

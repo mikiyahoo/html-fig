@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { discoverInternalPages } from "@/lib/capture";
 
+export const runtime = "nodejs";
+
 const discoverySchema = z.object({ url: z.string().url() });
 
 export async function POST(request: NextRequest) {

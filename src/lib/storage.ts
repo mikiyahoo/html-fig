@@ -1,10 +1,13 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import os from "node:os";
 import type { CaptureResult } from "./types";
 
 // Temporary storage directory
-const STORAGE_DIR = process.env.STORAGE_DIR || "temp/captures";
+const STORAGE_DIR = process.env.STORAGE_DIR || (process.env.VERCEL
+  ? path.join(os.tmpdir(), "html-to-figma", "captures")
+  : "temp/captures");
 
 // Retention period (in days)
 export const RETENTION_PERIOD = parseInt(process.env.CAPTURE_RETENTION_DAYS || "7", 10);

@@ -31,7 +31,7 @@ The Next.js app and its `package.json` are in this repository root. Import the r
 
 ## Important deployment requirements
 
-The capture API launches Playwright/Chromium and saves capture artifacts locally. For production use on Vercel, configure a compatible Chromium runtime or remote browser service and persistent storage for capture files; function-local files are not durable across requests.
+The capture API uses Playwright 1.62 with the matching serverless Chromium 153 binary on Vercel. Use Node.js 22.17 or newer. Capture files are written to the function's temporary directory; configure persistent storage if captures must remain available across serverless requests, because function-local files are not durable.
 
 See [Phase 1 plan](PHASE1_PLAN.md) and [product roadmap](Phase%20Plan.md).
 
