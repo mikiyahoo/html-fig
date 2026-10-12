@@ -182,13 +182,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white">
-      {view !== "dashboard" && (
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          <button type="button" onClick={() => setView("dashboard")} className="text-sm font-medium text-blue-600 hover:text-blue-800">
-            ← Projects
-          </button>
-        </div>
-      )}
       {view === "dashboard" && (
         <Dashboard
           onImport={handleImport}
@@ -197,6 +190,10 @@ export default function Home() {
           recentCaptures={recentCaptures}
           disabled={isLoading}
           error={error}
+          isCapturing={isLoading}
+          captureStatus={status}
+          showCaptureDrawer={showCaptureDrawer}
+          onCloseCaptureDrawer={() => setShowCaptureDrawer(false)}
         />
       )}
       {view === "capture" && (
@@ -207,12 +204,6 @@ export default function Home() {
           batchExportUrl={batchId ? `/api/captures/batch/${batchId}/export` : null}
           onStatusChange={setStatus}
           onResultChange={(capture) => setCaptures(capture ? [capture] : [])}
-        />
-      )}
-      {showCaptureDrawer && view === "dashboard" && (
-        <CaptureProgressDrawer
-          status={status}
-          onClose={() => setShowCaptureDrawer(false)}
         />
       )}
     </main>

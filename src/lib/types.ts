@@ -130,6 +130,9 @@ export interface CaptureStatus {
   errors: string[];
   warnings: string[];
   screenshotUrl: string | null;
+  pageTitle?: string;
+  pageCount?: number;
+  assetCount?: number;
   elapsedTime: number;
   startedAt: string | null;
   completedAt: string | null;
