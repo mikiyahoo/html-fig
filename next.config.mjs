@@ -9,7 +9,10 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ["@sparticuz/chromium"],
     outputFileTracingIncludes: {
+      // Every route that can launch Chromium needs the compressed binaries traced in.
       "/api/captures/**": ["node_modules/@sparticuz/chromium/bin/**/*"],
+      "/api/queues/**": ["node_modules/@sparticuz/chromium/bin/**/*"],
+      "/api/figma/**": ["node_modules/@sparticuz/chromium/bin/**/*"],
     },
   },
   webpack(config) {
