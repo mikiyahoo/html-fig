@@ -1,4 +1,4 @@
-import type { DesignColor, DesignDocument, DesignNode } from "../shared/design-schema";
+import type { DesignColor, DesignDocument, DesignFill, DesignNode } from "../shared/design-schema";
 const SUPPORTED_SCHEMA_VERSION: DesignDocument["schemaVersion"] = "1.0.0";
 
 type ImportMessage = {
@@ -119,7 +119,7 @@ async function createDesignNode(node: DesignNode, assets: Record<string, Uint8Ar
     shape.x = node.bounds.x;
     shape.y = node.bounds.y;
     shape.opacity = clamp(node.opacity, 0, 1);
-    shape.fills = node.fills.map(toSolidPaint);
+    shape.fills = node.fills.map(toPaint);
     shape.strokes = node.strokes.map(toSolidPaint);
     shape.strokeWeight = Math.max(0, node.strokeWidth);
     if (node.type === "RECTANGLE") shape.cornerRadius = Math.max(0, node.cornerRadius);
@@ -132,15 +132,13 @@ async function createDesignNode(node: DesignNode, assets: Record<string, Uint8Ar
   frame.x = node.bounds.x;
   frame.y = node.bounds.y;
   frame.opacity = clamp(node.opacity, 0, 1);
-  frame.fills = node.fills.map(toSolidPaint);
+  frame.fills = node.fills.map(toPaint);
   frame.strokes = node.strokes.map(toSolidPaint);
   frame.strokeWeight = Math.max(0, node.strokeWidth);
   frame.cornerRadius = Math.max(0, node.cornerRadius);
-  if (isRoot || !node.layout || node.layout.mode === "NONE") {
-    frame.layoutMode = "NONE";
-  } else {
-    applyAutoLayout(frame, node.layout);
-  }
+  // Captured bounds are authoritative. Applying Auto Layout here makes Figma
+  // reposition children and no longer match the source page's rendered layout.
+  frame.layoutMode = "NONE";
 
   for (const child of node.children || []) {
     const childNode = await createDesignNode(child, assets);
@@ -200,6 +198,23 @@ function textAlign(value: string): "LEFT" | "CENTER" | "RIGHT" | "JUSTIFIED" {
 
 function toSolidPaint(color: DesignColor): SolidPaint {
   return { type: "SOLID", color: { r: color.r, g: color.g, b: color.b }, opacity: clamp(color.a, 0, 1) };
+}
+
+function toPaint(fill: DesignFill): SolidPaint | GradientPaint {
+  if ("type" in fill && fill.type === "LINEAR_GRADIENT") {
+    const radians = (fill.angle - 90) * Math.PI / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    return {
+      type: "GRADIENT_LINEAR",
+      gradientTransform: [
+        [cos, sin, 0.5 - (cos + sin) / 2],
+        [-sin, cos, 0.5 + (sin - cos) / 2],
+      ],
+      gradientStops: fill.stops.map((stop) => ({ position: stop.position, color: { r: stop.color.r, g: stop.color.g, b: stop.color.b, a: stop.color.a } })),
+    };
+  }
+  return toSolidPaint(fill as DesignColor);
 }
 
 function countNodes(node: DesignNode, type?: DesignNode["type"]): number {

@@ -8,6 +8,12 @@ export interface DesignColor {
   a: number;
 }
 
+export type DesignFill = DesignColor | {
+  type: "LINEAR_GRADIENT";
+  angle: number;
+  stops: Array<{ position: number; color: DesignColor }>;
+};
+
 export interface DesignBounds {
   x: number;
   y: number;
@@ -23,7 +29,7 @@ export interface DesignNode {
   name: string;
   type: DesignNodeType;
   bounds: DesignBounds;
-  fills: DesignColor[];
+  fills: DesignFill[];
   strokes: DesignColor[];
   strokeWidth: number;
   cornerRadius: number;

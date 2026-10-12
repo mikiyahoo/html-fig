@@ -1,5 +1,5 @@
 import type { AssetManifest, CaptureResult, ElementInfo } from "./types";
-import { DESIGN_SCHEMA_VERSION, type DesignColor, type DesignDocument, type DesignNode } from "../../shared/design-schema";
+import { DESIGN_SCHEMA_VERSION, type DesignColor, type DesignDocument, type DesignFill, type DesignNode } from "../../shared/design-schema";
 
 export type { DesignColor, DesignDocument, DesignNode } from "../../shared/design-schema";
 
@@ -32,7 +32,7 @@ export function buildDesignTree(capture: CaptureResult): DesignDocument {
     const parentRect = parent?.boundingRect;
     const text = (element.textContent || "").trim();
     const name = makeNodeName(element, index, text);
-    const background = parseCssColor(element.backgroundColor);
+    const background = parseBackground(element.backgroundColor, element.cssProperties["background-image"]);
     const textColor = parseCssColor(element.color);
     const borderWidth = parsePixels(element.borderWidth);
     const borderColor = element.borderStyle === "none" ? null : parseCssColor(element.borderColor);
@@ -53,7 +53,7 @@ export function buildDesignTree(capture: CaptureResult): DesignDocument {
         width: Math.max(0, Math.round(rect.width)),
         height: Math.max(0, Math.round(rect.height)),
       },
-      fills: background && background.a > 0 ? [background] : [],
+      fills: background ? [background] : [],
       strokes: borderWidth > 0 && borderColor ? [borderColor] : [],
       strokeWidth: borderWidth,
       cornerRadius: parsePixels(element.borderRadius),
@@ -89,7 +89,7 @@ export function buildDesignTree(capture: CaptureResult): DesignDocument {
       if (!node.image.packagePath) warnings.add(`Image asset is not packaged: ${element.alt || sourceUrl || name}`);
     }
     const backgroundImage = element.cssProperties["background-image"];
-    if (backgroundImage && backgroundImage !== "none") warnings.add(`Background image or gradient is not converted to a native fill: ${name}`);
+    if (backgroundImage && backgroundImage !== "none" && !isSupportedGradient(backgroundImage)) warnings.add(`Background image is not converted to a native fill: ${name}`);
     if (element.display === "grid") warnings.add(`Grid layout is represented with positioned nodes: ${name}`);
     if (element.boxShadow && element.boxShadow !== "none") warnings.add(`Box shadow is not converted to a native effect: ${name}`);
     for (const property of ["transform", "filter", "clip-path", "mask-image", "mix-blend-mode", "backdrop-filter"]) {
@@ -235,6 +235,42 @@ function parseCssColor(value: string | null | undefined): DesignColor | null {
   const alphaPart = parts[3];
   const alpha = alphaPart ? clamp(parseFloat(alphaPart) / (alphaPart.endsWith("%") ? 100 : 1), 0, 1) : 1;
   return { r: channel(parts[0]), g: channel(parts[1]), b: channel(parts[2]), a: alpha };
+}
+
+function parseBackground(color: string | null | undefined, image: string | undefined): DesignFill | null {
+  if (image && image !== "none") {
+    const gradient = parseLinearGradient(image);
+    if (gradient) return gradient;
+  }
+  const solid = parseCssColor(color);
+  return solid && solid.a > 0 ? solid : null;
+}
+
+function isSupportedGradient(value: string): boolean {
+  return !!parseLinearGradient(value);
+}
+
+function parseLinearGradient(value: string): DesignFill | null {
+  const match = value.match(/^linear-gradient\((.*)\)$/i);
+  if (!match) return null;
+  const parts = match[1].match(/(?:rgba?\([^)]*\)|[^,])+/g)?.map((part) => part.trim()) || [];
+  let angle = 180;
+  if (parts[0] && /^(?:-?\d+(?:\.\d+)?deg|to\s+)/i.test(parts[0])) {
+    const direction = parts.shift()!;
+    if (direction.endsWith("deg")) angle = Number.parseFloat(direction);
+    else if (/right/i.test(direction)) angle = 90;
+    else if (/left/i.test(direction)) angle = 270;
+    else if (/top/i.test(direction)) angle = 0;
+    else angle = 180;
+  }
+  const stops = parts.map((part, index) => {
+    const colorMatch = part.match(/rgba?\([^)]*\)/i);
+    const parsed = colorMatch && parseCssColor(colorMatch[0]);
+    if (!parsed) return null;
+    const positionMatch = part.slice(colorMatch![0].length).match(/-?\d+(?:\.\d+)?%/);
+    return { color: parsed, position: positionMatch ? clamp(parseFloat(positionMatch[0]) / 100, 0, 1) : index / Math.max(1, parts.length - 1) };
+  }).filter((stop): stop is { color: DesignColor; position: number } => !!stop);
+  return stops.length >= 2 ? { type: "LINEAR_GRADIENT", angle, stops } : null;
 }
 
 function parsePixels(value: string | null | undefined): number {
