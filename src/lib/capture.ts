@@ -7,7 +7,7 @@ import { saveCaptureToStorage } from "./storage";
 import { normalizeInternalPageLinks } from "./page-discovery";
 
 export const CAPTURE_SCHEMA_VERSION = "1.0.0";
-const NAVIGATION_TIMEOUT = 30_000;
+export const NAVIGATION_TIMEOUT = 30_000;
 const MAX_ASSETS = 100;
 const MAX_ASSET_BYTES = 8 * 1024 * 1024;
 const MAX_TOTAL_ASSET_BYTES = 40 * 1024 * 1024;
@@ -23,80 +23,21 @@ export async function startCapture(url: string, settings: Partial<CaptureSetting
   if (!validation.valid || !validation.parsedUrl) throw new Error(validation.error || "Invalid URL");
   const parsedUrl = validation.parsedUrl;
   if (!(await validatePublicNetworkUrl(parsedUrl))) throw new Error("This URL does not resolve to a public network address.");
-  const captureSettings: CaptureSettings = {
-    url: parsedUrl.href,
-    viewport: settings.viewport || "desktop",
-    fullPageScreenshot: settings.fullPageScreenshot ?? false,
-    captureAssets: settings.captureAssets ?? true,
-    captureSchemaVersion: settings.captureSchemaVersion || 1,
-  };
-  const timestamp = new Date().toISOString();
-  const capture: CaptureResult = {
-    id: generateCaptureId(), status: "running", originalUrl: parsedUrl.href, finalUrl: parsedUrl.href,
-    pageMetadata: { originalUrl: parsedUrl.href, finalUrl: parsedUrl.href, title: "", description: "",
-      viewportWidth: 0, viewportHeight: 0, scrollWidth: 0, scrollHeight: 0,
-      captureTimestamp: timestamp, captureSchemaVersion: captureSettings.captureSchemaVersion,
-      userAgent: "", languages: [] },
-    elements: [], assets: [], warnings: [], errors: [], captureTimestamp: timestamp, captureSettings,
-    manifest: { captureVersion: CAPTURE_SCHEMA_VERSION, sourceUrl: parsedUrl.href, timestamp,
-      assetList: [], captureSettings, warnings: [], packageContents: [] },
-  };
+  const capture = createCaptureRecord(parsedUrl.href, settings);
 
   const browser = await launchBrowser();
   try {
-    const viewport = getViewportConfig(captureSettings.viewport);
+    const viewport = getViewportConfig(capture.captureSettings.viewport);
     const context = await browser.newContext({ viewport, locale: "en-US" });
     await installRequestPolicy(context);
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
-    const consoleErrors: string[] = [];
-    page.on("pageerror", (error) => addConsoleError(consoleErrors, error.message));
-    page.on("console", (message) => {
-      if (message.type() === "error") addConsoleError(consoleErrors, message.text());
-    });
+    const consoleErrors = collectConsoleErrors(page);
     if (await navigateWithRetry(page, parsedUrl.href)) {
       capture.warnings.push("The initial navigation failed transiently and succeeded after one retry.");
     }
     await page.waitForTimeout(750);
-    capture.finalUrl = page.url();
-    capture.pageMetadata = await page.evaluate((meta) => ({
-      ...meta,
-      finalUrl: location.href,
-      title: document.title,
-      description: document.querySelector('meta[name="description"]')?.getAttribute("content") || "",
-      viewportWidth: innerWidth,
-      viewportHeight: innerHeight,
-      scrollWidth: document.documentElement.scrollWidth,
-      scrollHeight: document.documentElement.scrollHeight,
-      userAgent: navigator.userAgent,
-      languages: [...navigator.languages],
-      captureTimestamp: new Date().toISOString(),
-    }), capture.pageMetadata);
-    capture.elements = await extractElements(page);
-    if (captureSettings.captureAssets) await extractAssets(page, capture);
-
-    const viewportBuffer = await page.screenshot({ type: "png", timeout: 10_000 });
-    const fullPageHeight = Math.min(capture.pageMetadata.scrollHeight, MAX_FULL_PAGE_HEIGHT);
-    let fullPageBuffer: Buffer | undefined;
-    if (captureSettings.fullPageScreenshot) {
-      if (capture.pageMetadata.scrollHeight > MAX_FULL_PAGE_HEIGHT) {
-        capture.warnings.push(`Full-page screenshot limited to ${MAX_FULL_PAGE_HEIGHT}px height.`);
-      }
-      fullPageBuffer = await page.screenshot({ type: "png", fullPage: false, clip: {
-        x: 0, y: 0, width: Math.min(capture.pageMetadata.scrollWidth, 8_000), height: Math.max(1, fullPageHeight),
-      }, timeout: 10_000 });
-    }
-    capture.screenshot = { width: viewport.width, height: viewport.height, format: "png", path: "screenshots/viewport.png" };
-    if (fullPageBuffer) capture.fullPageScreenshot = {
-      width: Math.min(capture.pageMetadata.scrollWidth, 8_000), height: fullPageHeight,
-      format: "png", path: "screenshots/full-page.png",
-    };
-    capture.errors = consoleErrors;
-    capture.status = "completed";
-    capture.manifest.assetList = capture.assets;
-    capture.manifest.warnings = capture.warnings;
-    capture.manifest.packageContents = ["manifest.json", "page.json", "screenshots/", "assets/", "README.md"];
-    await saveCaptureToStorage(capture, { viewport: viewportBuffer, fullPage: fullPageBuffer });
+    await captureOpenPage(page, capture, consoleErrors);
     await context.close();
     return capture;
   } catch (error) {
@@ -106,6 +47,84 @@ export async function startCapture(url: string, settings: Partial<CaptureSetting
   } finally {
     await browser.close();
   }
+}
+
+/** Build an empty capture record for a page that is about to be captured. */
+export function createCaptureRecord(url: string, settings: Partial<CaptureSettings> = {}): CaptureResult {
+  const captureSettings: CaptureSettings = {
+    url,
+    viewport: settings.viewport || "desktop",
+    fullPageScreenshot: settings.fullPageScreenshot ?? false,
+    captureAssets: settings.captureAssets ?? true,
+    captureSchemaVersion: settings.captureSchemaVersion || 1,
+  };
+  const timestamp = new Date().toISOString();
+  return {
+    id: generateCaptureId(), status: "running", originalUrl: url, finalUrl: url,
+    pageMetadata: { originalUrl: url, finalUrl: url, title: "", description: "",
+      viewportWidth: 0, viewportHeight: 0, scrollWidth: 0, scrollHeight: 0,
+      captureTimestamp: timestamp, captureSchemaVersion: captureSettings.captureSchemaVersion,
+      userAgent: "", languages: [] },
+    elements: [], assets: [], warnings: [], errors: [], captureTimestamp: timestamp, captureSettings,
+    manifest: { captureVersion: CAPTURE_SCHEMA_VERSION, sourceUrl: url, timestamp,
+      assetList: [], captureSettings, warnings: [], packageContents: [] },
+  };
+}
+
+/** Record page errors so they can be attached to the capture that follows. */
+export function collectConsoleErrors(page: Page): string[] {
+  const consoleErrors: string[] = [];
+  page.on("pageerror", (error) => addConsoleError(consoleErrors, error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") addConsoleError(consoleErrors, message.text());
+  });
+  return consoleErrors;
+}
+
+/** Capture the page in its current state (after navigation or recorded actions) and persist it. */
+export async function captureOpenPage(page: Page, capture: CaptureResult, consoleErrors: string[] = []): Promise<CaptureResult> {
+  const { captureSettings } = capture;
+  const viewport = getViewportConfig(captureSettings.viewport);
+  capture.finalUrl = page.url();
+  capture.pageMetadata = await page.evaluate((meta) => ({
+    ...meta,
+    finalUrl: location.href,
+    title: document.title,
+    description: document.querySelector('meta[name="description"]')?.getAttribute("content") || "",
+    viewportWidth: innerWidth,
+    viewportHeight: innerHeight,
+    scrollWidth: document.documentElement.scrollWidth,
+    scrollHeight: document.documentElement.scrollHeight,
+    userAgent: navigator.userAgent,
+    languages: [...navigator.languages],
+    captureTimestamp: new Date().toISOString(),
+  }), capture.pageMetadata);
+  capture.elements = await extractElements(page);
+  if (captureSettings.captureAssets) await extractAssets(page, capture);
+
+  const viewportBuffer = await page.screenshot({ type: "png", timeout: 10_000 });
+  const fullPageHeight = Math.min(capture.pageMetadata.scrollHeight, MAX_FULL_PAGE_HEIGHT);
+  let fullPageBuffer: Buffer | undefined;
+  if (captureSettings.fullPageScreenshot) {
+    if (capture.pageMetadata.scrollHeight > MAX_FULL_PAGE_HEIGHT) {
+      capture.warnings.push(`Full-page screenshot limited to ${MAX_FULL_PAGE_HEIGHT}px height.`);
+    }
+    fullPageBuffer = await page.screenshot({ type: "png", fullPage: false, clip: {
+      x: 0, y: 0, width: Math.min(capture.pageMetadata.scrollWidth, 8_000), height: Math.max(1, fullPageHeight),
+    }, timeout: 10_000 });
+  }
+  capture.screenshot = { width: viewport.width, height: viewport.height, format: "png", path: "screenshots/viewport.png" };
+  if (fullPageBuffer) capture.fullPageScreenshot = {
+    width: Math.min(capture.pageMetadata.scrollWidth, 8_000), height: fullPageHeight,
+    format: "png", path: "screenshots/full-page.png",
+  };
+  capture.errors = consoleErrors;
+  capture.status = "completed";
+  capture.manifest.assetList = capture.assets;
+  capture.manifest.warnings = capture.warnings;
+  capture.manifest.packageContents = ["manifest.json", "page.json", "screenshots/", "assets/", "README.md"];
+  await saveCaptureToStorage(capture, { viewport: viewportBuffer, fullPage: fullPageBuffer });
+  return capture;
 }
 
 export async function discoverInternalPages(url: string, limit = 10): Promise<string[]> {
@@ -132,7 +151,7 @@ export async function discoverInternalPages(url: string, limit = 10): Promise<st
 }
 
 /** Use the bundled Linux binary on Vercel; use the Playwright-managed browser locally. */
-async function launchBrowser(): Promise<Browser> {
+export async function launchBrowser(): Promise<Browser> {
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_VERSION) {
     const { default: serverlessChromium } = await import("@sparticuz/chromium");
     return playwrightChromium.launch({
@@ -148,7 +167,7 @@ async function launchBrowser(): Promise<Browser> {
   });
 }
 
-async function navigateWithRetry(page: Page, url: string): Promise<boolean> {
+export async function navigateWithRetry(page: Page, url: string): Promise<boolean> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAVIGATION_TIMEOUT });
@@ -174,7 +193,7 @@ function addConsoleError(errors: string[], message: string): void {
   if (normalized && errors.length < 20 && !errors.includes(normalized)) errors.push(normalized);
 }
 
-async function installRequestPolicy(context: BrowserContext): Promise<void> {
+export async function installRequestPolicy(context: BrowserContext): Promise<void> {
   // Every browser request, including redirects and subresources, is checked before Chromium follows it.
   await context.route("**/*", async (route) => {
     try {
@@ -199,9 +218,35 @@ export async function extractElements(page: Page): Promise<ElementInfo[]> {
       .filter((el) => tags.has(el.tagName.toLowerCase()) && el.getAttribute("type") !== "password")
       .filter((el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; });
     const ids = new Map(nodes.map((node, i) => [node, `el-${i}`]));
+    const interactiveTags = new Set(["a", "button", "input", "select", "textarea", "label"]);
+    const interactiveRoles = new Set(["button", "link", "tab", "menuitem", "option", "checkbox", "radio", "switch", "combobox"]);
+    const safeId = /^[A-Za-z][\w-]*$/;
+    // A short CSS path used to replay recorded flow actions against the same element.
+    const selectorFor = (target: HTMLElement): string => {
+      const parts: string[] = [];
+      let node: HTMLElement | null = target;
+      let anchored = false;
+      while (node && node !== document.body && parts.length < 8) {
+        if (node.id && safeId.test(node.id) && document.querySelectorAll(`#${CSS.escape(node.id)}`).length === 1) {
+          parts.unshift(`#${CSS.escape(node.id)}`);
+          anchored = true;
+          break;
+        }
+        let part = node.tagName.toLowerCase();
+        const parent: HTMLElement | null = node.parentElement;
+        if (parent) {
+          const sameTag = Array.from(parent.children).filter((child) => child.tagName === node!.tagName);
+          if (sameTag.length > 1) part += `:nth-of-type(${sameTag.indexOf(node) + 1})`;
+        }
+        parts.unshift(part);
+        node = parent;
+      }
+      return `${anchored || node !== document.body ? "" : "body > "}${parts.join(" > ")}`;
+    };
     return nodes.map((el): ElementInfo => {
       const tag = el.tagName.toLowerCase();
       const style = getComputedStyle(el); const rect = el.getBoundingClientRect();
+      const interactive = interactiveTags.has(tag) || interactiveRoles.has(el.getAttribute("role") || "") || style.cursor === "pointer";
       const cssProperties: Record<string, string> = {};
       for (const property of Array.from(style)) cssProperties[property] = style.getPropertyValue(property);
       let parentNode = el.parentElement;
@@ -221,6 +266,7 @@ export async function extractElements(page: Page): Promise<ElementInfo[]> {
         borderRadius: style.borderRadius, boxShadow: style.boxShadow, opacity: style.opacity,
         imageSrc: tag === "img" ? image.currentSrc || image.src : null, alt: tag === "img" ? image.alt : null,
         visibility: style.visibility, zIndex: style.zIndex, cssProperties,
+        ...(interactive ? { selector: selectorFor(el) } : {}),
       };
     });
   });

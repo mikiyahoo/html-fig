@@ -65,6 +65,8 @@ export interface ElementInfo {
   visibility: string;
   zIndex: string | null;
   cssProperties: Record<string, string>;
+  /** CSS path for interactive elements, used to replay recorded flow actions. */
+  selector?: string;
 }
 
 // Asset manifest
@@ -114,6 +116,8 @@ export interface CaptureResult {
     warnings: string[];
     packageContents: string[];
   };
+  /** Set when this capture is a recorded flow step rather than a standalone project. */
+  flowId?: string;
   /** Internal transfer buffer, removed before the capture is serialized to disk or returned to clients. */
   assetFiles?: Record<string, string>;
 }

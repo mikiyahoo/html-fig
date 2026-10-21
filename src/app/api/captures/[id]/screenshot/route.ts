@@ -11,7 +11,8 @@ export async function GET(
       return NextResponse.json({ error: "Screenshot not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    const imageBuffer = await readStoredFile(`${id}/screenshots/viewport.png`);
+    const variant = request.nextUrl.searchParams.get("variant") === "full" ? "full-page" : "viewport";
+    const imageBuffer = await readStoredFile(`${id}/screenshots/${variant}.png`);
     if (!imageBuffer) {
       return NextResponse.json(
         { error: "Screenshot not found", code: "NOT_FOUND" },

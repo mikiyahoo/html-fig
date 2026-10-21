@@ -95,6 +95,8 @@
       });
 
       async function importArchive(archive) {
+          const flowPath = Object.keys(archive.files).find((path) => /^flows\/[^/]+\.json$/.test(path));
+          if (flowPath) return importFlowArchive(archive, flowPath);
           const designPaths = Object.keys(archive.files)
             .filter((path) => path === "design.json" || /^pages\/[^/]+\/design\.json$/.test(path))
             .sort();
@@ -114,6 +116,30 @@
           }
           parent.postMessage({ pluginMessage: { type: "import", pages } }, "*");
           status.textContent = "Creating editable native layers in Figma…";
+      }
+
+      async function importFlowArchive(archive, flowPath) {
+          const flowDocument = JSON.parse(await archive.file(flowPath).async("string"));
+          if (!flowDocument.flow || !Array.isArray(flowDocument.steps)) throw new Error("This flow package is missing its step list.");
+          const pages = [];
+          const steps = [];
+          for (const step of flowDocument.steps) {
+            const designFile = archive.file(step.design);
+            if (!designFile) continue;
+            const design = JSON.parse(await designFile.async("string"));
+            const assetPaths = new Set();
+            collectAssetPaths(design.root, assetPaths);
+            const assets = {};
+            for (const assetPath of assetPaths) {
+              const assetFile = archive.file(step.folder + assetPath);
+              if (assetFile) assets[assetPath] = await assetFile.async("uint8array");
+            }
+            pages.push({ design, assets });
+            steps.push({ id: step.id, index: step.index, name: step.name, parentId: step.parentId, actionLabel: step.actionLabel, url: step.url, risk: step.risk, note: step.note });
+          }
+          if (!pages.length) throw new Error("No step designs were found in this flow package.");
+          parent.postMessage({ pluginMessage: { type: "import", pages, flow: { name: flowDocument.flow.name, startUrl: flowDocument.flow.startUrl, steps } } }, "*");
+          status.textContent = "Creating one editable frame per flow step…";
       }
 
       function showError(error) {

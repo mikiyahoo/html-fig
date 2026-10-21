@@ -1,8 +1,18 @@
 import { describe, it, expect } from "vitest";
-import { validateUrl, isPrivateNetworkDestination } from "@/lib/url-validator";
+import { validateUrl, isPrivateIpAddress, isPrivateNetworkDestination } from "@/lib/url-validator";
 import { captureSchema } from "@/schemas/capture.schema";
 
 describe("URL Validation", () => {
+  it("blocks reserved documentation ranges without blocking their public neighbours", () => {
+    for (const address of ["192.0.0.8", "192.0.2.10", "198.51.100.7", "203.0.113.9", "198.18.0.1"]) {
+      expect(isPrivateIpAddress(address)).toBe(true);
+    }
+    // iana.org resolves to 192.0.43.8, which is public.
+    for (const address of ["192.0.43.8", "198.51.1.1", "203.0.178.1"]) {
+      expect(isPrivateIpAddress(address)).toBe(false);
+    }
+  });
+
   describe("validateUrl", () => {
     it("should accept valid HTTP URLs", () => {
       const result = validateUrl("http://example.com");

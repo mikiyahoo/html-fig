@@ -5,15 +5,17 @@ export function isPrivateIpAddress(hostname: string): boolean {
   // IPv4 private ranges
   const ipv4 = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (ipv4) {
-    const [a, b] = [parseInt(ipv4[1]), parseInt(ipv4[2])];
+    const [a, b, c] = [parseInt(ipv4[1]), parseInt(ipv4[2]), parseInt(ipv4[3])];
     if ([0, 10, 127].includes(a)) return true;
     if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12
     if (a === 192 && b === 168) return true; // 192.168.0.0/16
     if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
     if (a === 169 && b === 254) return true; // 169.254.0.0/16 link-local (cloud metadata)
-    if (a === 192 && b === 0) return true;
-    if (a === 198 && (b === 18 || b === 19 || b === 51)) return true;
-    if (a === 203 && b === 0) return true;
+    // Reserved /24s only; the rest of 192.0.0.0/16 (e.g. iana.org at 192.0.43.8) is public.
+    if (a === 192 && b === 0 && (c === 0 || c === 2)) return true; // IETF protocol assignments, TEST-NET-1
+    if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 benchmarking
+    if (a === 198 && b === 51 && c === 100) return true; // TEST-NET-2
+    if (a === 203 && b === 0 && c === 113) return true; // TEST-NET-3
     if (a >= 224) return true; // multicast, reserved and broadcast
   }
   // IPv6 private/loopback

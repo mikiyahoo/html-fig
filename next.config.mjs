@@ -13,6 +13,7 @@ const nextConfig = {
       "/api/captures/**": ["node_modules/@sparticuz/chromium/bin/**/*"],
       "/api/queues/**": ["node_modules/@sparticuz/chromium/bin/**/*"],
       "/api/figma/**": ["node_modules/@sparticuz/chromium/bin/**/*"],
+      "/api/flows/**": ["node_modules/@sparticuz/chromium/bin/**/*"],
     },
   },
   webpack(config) {

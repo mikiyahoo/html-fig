@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import type { CaptureStatus } from "@/lib/types";
 import type { CaptureInput, Viewport } from "@/lib/url-validator";
 import { validateUrl, VIEWPORT_LABELS } from "@/lib/url-validator";
-import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, Clock3, ExternalLink, Folder, Globe2, Layers3, LayoutGrid, List, Loader2, Link2, Maximize2, Monitor, MoreHorizontal, Palette, Plus, Search, Settings2, Smartphone, Tablet, Trash2, Upload, WandSparkles, X } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, Check, ChevronDown, Clock3, ExternalLink, Folder, Globe2, Layers3, LayoutGrid, List, Loader2, Link2, Maximize2, Monitor, MoreHorizontal, Palette, Plus, Search, Settings2, Smartphone, Tablet, Trash2, Upload, WandSparkles, Workflow, X } from "lucide-react";
+import FlowRecorder from "@/components/FlowRecorder/FlowRecorder";
 
 interface DashboardProps {
   onImport: (input: Omit<CaptureInput, "url"> & { urls: string[]; viewports: Viewport[] }) => void;
@@ -33,7 +34,7 @@ export default function Dashboard({
   showCaptureDrawer = false,
   onCloseCaptureDrawer,
 }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "projects">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "projects" | "flows">("dashboard");
   const [projectSearch, setProjectSearch] = useState("");
   const [projectStatusFilter, setProjectStatusFilter] = useState<"all" | "completed" | "running" | "failed">("all");
   const [projectSort, setProjectSort] = useState<"recent" | "oldest" | "name">("recent");
@@ -371,6 +372,18 @@ export default function Dashboard({
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab("flows")}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                activeTab === "flows"
+                  ? "bg-blue-50 font-semibold text-blue-700"
+                  : "font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              }`}
+            >
+              <Workflow className="h-4 w-4 shrink-0" />
+              User Flows
+            </button>
+            <button
+              type="button"
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-400 transition-colors"
               disabled
             >
@@ -399,7 +412,9 @@ export default function Dashboard({
 
         {/* Main content */}
         <div className="flex min-w-0 flex-1 flex-col">
-          {activeTab === "projects" ? (
+          {activeTab === "flows" ? (
+            <FlowRecorder />
+          ) : activeTab === "projects" ? (
             <main className="min-w-0 flex-1 px-4 py-6 sm:px-7 lg:px-8 lg:py-8">
               {/* Top Navigation */}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
