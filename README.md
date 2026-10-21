@@ -9,6 +9,7 @@ A Next.js application that captures a website page and prepares structured data 
 - Phase 3: Companion Figma plugin that imports editable frames, text, and packaged images.
 - Phase 4: Same-origin page discovery, selection, multi-page capture, and one website ZIP.
 - Responsive capture: Optional desktop, tablet, and mobile layouts, imported as viewport-labeled Figma frames (up to 3 pages per responsive batch).
+- User flows: Under **User Flows**, record a journey step by step (click an element on the captured screenshot, type test data, press a key, wait, or go to a URL). Modals and other same-URL states become separate steps, and any step can start a branch. Each new step replays its path in a fresh browser. Actions that look like pay/send/submit/delete need confirmation and end their branch so they're never replayed. Password and payment fields are never typed into. The flow ZIP has `flows/<name>.json` (steps and transitions, with typed values redacted) plus one folder per step, and the plugin imports it as one frame per step inside a section.
 
 The plugin creates nodes inside Figma; the web app does not generate a `.fig` file. Grid layout, CSS backgrounds, complex effects, and some image/font formats are represented with warnings or simplified nodes.
 

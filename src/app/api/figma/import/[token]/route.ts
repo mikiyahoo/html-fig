@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { CaptureResult } from "@/lib/types";
-import { createCaptureZip, createSiteCaptureZip } from "@/lib/zip-export";
-import { readCapture, readFigmaImportTicket } from "@/lib/storage";
+import { createCaptureZip, createFlowZip, createSiteCaptureZip } from "@/lib/zip-export";
+import { readCapture, readFigmaImportTicket, readFlow } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -27,6 +27,19 @@ export async function GET(_request: NextRequest, { params }: { params: { token: 
     const ticket = await readFigmaImportTicket(token);
     if (!ticket || Date.parse(ticket.expiresAt) <= Date.now()) {
       return NextResponse.json({ error: "This Figma transfer link has expired. Create a new link in HTML to Figma." }, { status: 410, headers: corsHeaders });
+    }
+    if (ticket.flowId) {
+      const flow = await readFlow(ticket.flowId);
+      if (!flow) return NextResponse.json({ error: "The recorded flow is no longer available." }, { status: 404, headers: corsHeaders });
+      const archive = await createFlowZip(flow, readCapture);
+      return new NextResponse(archive as unknown as BodyInit, {
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/zip",
+          "Content-Length": String(archive.length),
+          "Content-Disposition": 'attachment; filename="figma-flow-import.zip"',
+        },
+      });
     }
     const captures: CaptureResult[] = [];
     for (const id of ticket.captureIds) {

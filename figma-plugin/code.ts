@@ -1,10 +1,27 @@
 import type { DesignColor, DesignDocument, DesignFill, DesignNode } from "../shared/design-schema";
 const SUPPORTED_SCHEMA_VERSION: DesignDocument["schemaVersion"] = "1.0.0";
 
+type FlowStepInfo = {
+  id: string;
+  index: number;
+  name: string;
+  parentId: string | null;
+  actionLabel: string;
+  url: string;
+  risk: "low" | "high";
+  note: string | null;
+};
+
 type ImportMessage = {
   type: "import";
   pages: Array<{ design: DesignDocument; assets: Record<string, Uint8Array> }>;
+  /** Present for recorded-flow packages; `steps[i]` describes `pages[i]`. */
+  flow?: { name: string; startUrl: string; steps: FlowStepInfo[] };
 };
+
+const FLOW_PADDING = 80;
+const FLOW_GAP = 160;
+const FLOW_LABEL_HEIGHT = 64;
 
 let importWarnings = new Set<string>();
 
@@ -19,6 +36,10 @@ figma.ui.onmessage = async (message: ImportMessage | { type: "cancel" }) => {
 
   try {
     if (!message.pages.length) throw new Error("No design pages were found in this ZIP.");
+    if (message.flow) {
+      await importFlow(message.pages, message.flow);
+      return;
+    }
     const roots: FrameNode[] = [];
     let layerCount = 0;
     const notes: string[] = [];
@@ -48,6 +69,69 @@ figma.ui.onmessage = async (message: ImportMessage | { type: "cancel" }) => {
     figma.ui.postMessage({ type: "error", text: error instanceof Error ? error.message : "Import failed." });
   }
 };
+
+/** Lay out one frame per flow step, left to right, inside a new section placed beside existing content. */
+async function importFlow(pages: ImportMessage["pages"], flow: NonNullable<ImportMessage["flow"]>): Promise<void> {
+  if (pages.length !== flow.steps.length) throw new Error("The flow package's step list doesn't match its designs.");
+  importWarnings = new Set();
+  const notes: string[] = [];
+  await Promise.all([figma.loadFontAsync({ family: "Inter", style: "Regular" }), figma.loadFontAsync({ family: "Inter", style: "Bold" })]);
+
+  const section = figma.createSection();
+  section.name = `Flow — ${flow.name}`;
+  const stepNumberById = new Map(flow.steps.map((step) => [step.id, step.index]));
+  const previousId = (position: number) => flow.steps[position - 1]?.id;
+  let x = FLOW_PADDING;
+  let maxHeight = 0;
+  let layerCount = 0;
+
+  for (const [position, page] of pages.entries()) {
+    validateDesign(page.design);
+    const step = flow.steps[position];
+    figma.ui.postMessage({ type: "progress", text: `Creating step ${position + 1} of ${pages.length}…` });
+
+    const label = figma.createText();
+    label.fontName = { family: "Inter", style: "Bold" };
+    label.fontSize = 20;
+    label.characters = `${step.index}. ${step.name}`;
+    const caption = figma.createText();
+    caption.fontName = { family: "Inter", style: "Regular" };
+    caption.fontSize = 14;
+    const branch = step.parentId && step.parentId !== previousId(position) ? ` · branches from step ${stepNumberById.get(step.parentId) ?? "?"}` : "";
+    caption.characters = `${step.actionLabel}${branch}${step.risk === "high" ? " · high-risk action" : ""}`;
+    caption.fills = [{ type: "SOLID", color: { r: 0.4, g: 0.44, b: 0.52 } }];
+
+    const root = await createDesignNode(page.design.root, page.assets, true) as FrameNode;
+    root.name = `${String(step.index).padStart(2, "0")} · ${step.name}`;
+    root.setPluginData("webToFigmaStep", JSON.stringify({ ...step, sourceUrl: page.design.sourceUrl }));
+
+    section.appendChild(label);
+    section.appendChild(caption);
+    section.appendChild(root);
+    label.x = x;
+    label.y = FLOW_PADDING;
+    caption.x = x;
+    caption.y = FLOW_PADDING + 30;
+    root.x = x;
+    root.y = FLOW_PADDING + FLOW_LABEL_HEIGHT;
+    x += Math.max(root.width, label.width, caption.width) + FLOW_GAP;
+    maxHeight = Math.max(maxHeight, root.height);
+    layerCount += countNodes(page.design.root);
+    notes.push(...page.design.warnings.map((warning) => `Step ${step.index}: ${warning}`));
+  }
+
+  section.resizeWithoutConstraints(x - FLOW_GAP + FLOW_PADDING, FLOW_PADDING * 2 + FLOW_LABEL_HEIGHT + maxHeight);
+  // Never overlap existing content: place the section to the right of everything on the page.
+  const others = figma.currentPage.children.filter((node) => node !== section);
+  section.x = others.length ? Math.max(...others.map((node) => node.x + node.width)) + 400 : Math.round(figma.viewport.center.x - section.width / 2);
+  section.y = others.length ? Math.min(...others.map((node) => node.y)) : Math.round(figma.viewport.center.y - section.height / 2);
+  figma.viewport.scrollAndZoomIntoView([section]);
+
+  figma.ui.postMessage({ type: "complete", text: `Created flow “${flow.name}” with ${pages.length} step frame(s) and ${layerCount} native layers.` });
+  notes.push(...importWarnings);
+  if (notes.length) figma.ui.postMessage({ type: "warnings", warnings: [...new Set(notes)] });
+  figma.ui.postMessage({ type: "save-instructions", text: "To download a genuine .fig file, use Figma’s File → Save local copy. This plugin does not create or rename a .fig export." });
+}
 
 function validateDesign(design: unknown): asserts design is DesignDocument {
   if (!design || typeof design !== "object") throw new Error("This package does not contain a design document.");

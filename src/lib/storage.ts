@@ -4,6 +4,7 @@ import crypto from "crypto";
 import os from "node:os";
 import { del, get, list, put } from "@vercel/blob";
 import type { CaptureResult } from "./types";
+import type { FlowRecord } from "./flow-types";
 
 // Temporary storage directory
 const STORAGE_DIR = process.env.STORAGE_DIR || (process.env.VERCEL
@@ -121,17 +122,16 @@ export async function cleanupOldCaptures(): Promise<void> {
   if (useBlobStorage()) {
     const blobs = await listAllBlobFiles();
     const latestByFolder = new Map<string, number>();
+    const folderOf = (pathname: string) => {
+      const parts = pathname.slice(`${BLOB_PREFIX}/`.length).split("/");
+      return NESTED_FOLDERS.has(parts[0]) ? `${parts[0]}/${parts[1]}` : parts[0];
+    };
     for (const blob of blobs) {
-      const parts = blob.pathname.slice(`${BLOB_PREFIX}/`.length).split("/");
-      const folder = parts[0] === "batches" ? `batches/${parts[1]}` : parts[0];
+      const folder = folderOf(blob.pathname);
       latestByFolder.set(folder, Math.max(latestByFolder.get(folder) || 0, blob.uploadedAt.getTime()));
     }
     const cutoff = Date.now() - RETENTION_PERIOD * 24 * 60 * 60 * 1000;
-    const expired = blobs.filter((blob) => {
-      const parts = blob.pathname.slice(`${BLOB_PREFIX}/`.length).split("/");
-      const folder = parts[0] === "batches" ? `batches/${parts[1]}` : parts[0];
-      return latestByFolder.get(folder)! < cutoff;
-    });
+    const expired = blobs.filter((blob) => latestByFolder.get(folderOf(blob.pathname))! < cutoff);
     if (expired.length) await del(expired.map((blob) => blob.pathname));
     return;
   }
@@ -140,21 +140,20 @@ export async function cleanupOldCaptures(): Promise<void> {
   const now = Date.now();
   const retentionMs = RETENTION_PERIOD * 24 * 60 * 60 * 1000;
   const cutoff = now - retentionMs;
-  const batchesPath = path.join(STORAGE_DIR, "batches");
 
-  // Capture folders are direct children of STORAGE_DIR. Batch manifests live
-  // one level deeper, so clean each batch independently instead of relying on
-  // the parent `batches` directory's timestamp.
+  // Capture folders are direct children of STORAGE_DIR. Batch and flow
+  // manifests live one level deeper, so clean each one independently instead
+  // of relying on the parent directory's timestamp.
   for (const item of fs.readdirSync(STORAGE_DIR, { withFileTypes: true })) {
     const itemPath = path.join(STORAGE_DIR, item.name);
     try {
       if (!item.isDirectory()) continue;
-      if (itemPath === batchesPath) {
-        for (const batch of fs.readdirSync(batchesPath, { withFileTypes: true })) {
-          if (!batch.isDirectory()) continue;
-          const batchPath = path.join(batchesPath, batch.name);
-          if (fs.statSync(batchPath).mtimeMs < cutoff) {
-            fs.rmSync(batchPath, { recursive: true, force: true });
+      if (NESTED_FOLDERS.has(item.name)) {
+        for (const nested of fs.readdirSync(itemPath, { withFileTypes: true })) {
+          if (!nested.isDirectory()) continue;
+          const nestedPath = path.join(itemPath, nested.name);
+          if (latestModified(nestedPath) < cutoff) {
+            fs.rmSync(nestedPath, { recursive: true, force: true });
           }
         }
         continue;
@@ -166,6 +165,17 @@ export async function cleanupOldCaptures(): Promise<void> {
       // A concurrent capture or filesystem cleanup should not fail a request.
     }
   }
+}
+
+/** Folders whose children are independent packages with their own retention clock. */
+const NESTED_FOLDERS = new Set(["batches", "flows", "figma"]);
+
+function latestModified(dirPath: string): number {
+  let latest = fs.statSync(dirPath).mtimeMs;
+  for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    if (entry.isFile()) latest = Math.max(latest, fs.statSync(path.join(dirPath, entry.name)).mtimeMs);
+  }
+  return latest;
 }
 
 /**
@@ -229,8 +239,56 @@ export type BatchManifest = {
 
 export type FigmaImportTicket = {
   captureIds: string[];
+  /** When set, the ticket exports this recorded flow instead of standalone captures. */
+  flowId?: string;
   expiresAt: string;
 };
+
+export async function saveFlow(flow: FlowRecord): Promise<void> {
+  await writeStoredFile(`flows/${flow.id}/flow.json`, JSON.stringify(flow, null, 2), "application/json");
+}
+
+export async function readFlow(flowId: string): Promise<FlowRecord | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(flowId)) return null;
+  const data = await readStoredFile(`flows/${flowId}/flow.json`);
+  return data ? JSON.parse(data.toString("utf8")) as FlowRecord : null;
+}
+
+/** Return recorded flows, most recently updated first. */
+export async function listFlows(limit = 50): Promise<FlowRecord[]> {
+  const ids = new Set<string>();
+  if (useBlobStorage()) {
+    for (const blob of await listAllBlobFiles("flows/")) {
+      const parts = blob.pathname.slice(`${BLOB_PREFIX}/`.length).split("/");
+      if (parts[2] === "flow.json") ids.add(parts[1]);
+    }
+  } else {
+    const flowsDir = path.join(STORAGE_DIR, "flows");
+    if (fs.existsSync(flowsDir)) {
+      for (const entry of fs.readdirSync(flowsDir, { withFileTypes: true })) if (entry.isDirectory()) ids.add(entry.name);
+    }
+  }
+  const flows: FlowRecord[] = [];
+  for (const id of ids) {
+    try {
+      const flow = await readFlow(id);
+      if (flow) flows.push(flow);
+    } catch { /* Ignore partial flow metadata. */ }
+  }
+  return flows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, Math.max(1, limit));
+}
+
+/** Delete a flow and every step capture it owns. */
+export async function deleteFlow(flow: FlowRecord): Promise<void> {
+  for (const step of flow.steps) await deleteCaptureProject(step.captureId);
+  const prefix = `flows/${flow.id}/`;
+  if (useBlobStorage()) {
+    const blobs = await listAllBlobFiles(prefix);
+    if (blobs.length) await del(blobs.map((blob) => blob.pathname));
+    return;
+  }
+  fs.rmSync(path.join(STORAGE_DIR, "flows", flow.id), { recursive: true, force: true });
+}
 
 export async function saveFigmaImportTicket(token: string, value: FigmaImportTicket): Promise<void> {
   await writeStoredFile(`figma/tickets/${token}.json`, JSON.stringify(value), "application/json");
@@ -299,7 +357,7 @@ export async function listRecentCaptures(limit = 20): Promise<RecentCapture[]> {
       if (batchedCaptureIds.has(captureId)) continue;
       try {
         const capture = await readCapture(captureId);
-        if (capture) items.push({ id: capture.id, originalUrl: capture.originalUrl, state: "completed", progress: "Capture complete", errors: capture.errors, warnings: capture.warnings, screenshotUrl: `/api/captures/${capture.id}/screenshot`, elapsedTime: 0, startedAt: capture.captureTimestamp, completedAt: capture.captureTimestamp });
+        if (capture && !capture.flowId) items.push({ id: capture.id, originalUrl: capture.originalUrl, state: "completed", progress: "Capture complete", errors: capture.errors, warnings: capture.warnings, screenshotUrl: `/api/captures/${capture.id}/screenshot`, elapsedTime: 0, startedAt: capture.captureTimestamp, completedAt: capture.captureTimestamp });
       } catch { /* Ignore partial capture metadata. */ }
     }
     return items.sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, Math.max(1, limit));
@@ -324,6 +382,7 @@ export async function listRecentCaptures(limit = 20): Promise<RecentCapture[]> {
     }
     try {
       const capture = JSON.parse(fs.readFileSync(path.join(entryPath, "page.json"), "utf8")) as CaptureResult;
+      if (capture.flowId) continue;
       items.push({ id: capture.id, originalUrl: capture.originalUrl, state: "completed", progress: "Capture complete", errors: capture.errors, warnings: capture.warnings, screenshotUrl: `/api/captures/${capture.id}/screenshot`, elapsedTime: 0, startedAt: capture.captureTimestamp, completedAt: capture.captureTimestamp });
     } catch { /* Ignore incomplete captures. */ }
   }
